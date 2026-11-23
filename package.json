@@ -1,0 +1,25 @@
+{
+  "name": "product-inventory--api",
+  "version": "1.0.0",
+  "description": "Express.js Product Inventory API Group 3 Project",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "nodemon app.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ev-g127/Product-Inventory--API.git"
+  },
+  "keywords": [],
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Ev-g127/Product-Inventory--API/issues"
+  },
+  "homepage": "https://github.com/Ev-g127/Product-Inventory--API#readme",
+  "dependencies": {
+    "dotenv": "^18.0.10",
+    "express": "^5.3.0",
+    "nodemon": "^3.1.14"
+  }
+}
