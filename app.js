@@ -258,6 +258,114 @@ app.delete('/categories/:name', (req, res) => {
 });
 
 
+/**
+ * Suppliers section: This section contains the in-memory data storage for suppliers and the route to handle suppliers.
+ */
+
+// Define a route to get all suppliers
+app.get('/suppliers', (req, res) => {
+    res.status(200).json(suppliers);
+});
+
+// Define a route to get a specific supplier by its name
+app.get('/suppliers/:name', (req, res) => {
+    const supplierName = req.params.name;
+    const supplier = suppliers.find(s => s.name === supplierName);
+
+    // If the supplier is not found, return a 404 error response
+    if (!supplier) {
+        return res.status(404).json({ error: 'Supplier not found' });
+    }
+
+    // If the supplier is found, return the supplier data as JSON
+    res.status(200).json(supplier);
+});
+
+// Define a route to get all products from a specific supplier
+app.get('/suppliers/:name/products', (req, res) => {
+    const supplierName = req.params.name;
+    const supplier = suppliers.find(s => s.name === supplierName);
+
+    // If the supplier is not found, return a 404 error response
+    if (!supplier) {
+        return res.status(404).json({ error: 'Supplier not found' });
+    }
+
+    // Check if the supplier is valid (part of the suppliers array)
+    if (!suppliers.some(s => s.name === supplierName)) {
+        return res.status(400).json({ error: 'Invalid supplier' });
+    }
+
+    // Find all products associated with the supplier
+    const products = productData.filter(p => p.supplier === supplierName);
+
+    // Return the products as JSON
+    res.status(200).json(products);
+});
+
+// Define a route to update a specific supplier by its name
+app.patch('/suppliers/:name', (req, res) => {
+    const supplierName = req.params.name;
+    const { newName } = req.body;
+
+    // Find the supplier by name
+    const supplier = suppliers.find(s => s.name === supplierName);
+
+    // If the supplier is not found, return a 404 error response
+    if (!supplier) {
+        return res.status(404).json({ error: 'Supplier not found' });
+    }
+
+    // If the new name is provided and is different from the current name
+    if (newName && newName !== supplierName) {
+        // Check if a supplier with the new name already exists
+        if (suppliers.some(s => s.name === newName)) {
+            return res.status(400).json({ error: 'Supplier with the new name already exists' });
+        }
+    }
+
+    // Check if the new name is not empty or null
+    if (!newName || newName.trim() === '') {
+        return res.status(400).json({ error: 'New name cannot be empty' });
+    }
+
+    // Update the supplier's name
+    supplier.name = newName;
+
+    // Return a success response
+    res.status(200).json({ message: 'Supplier updated successfully' });
+});
+
+// Define a route to delete a specific supplier by its name
+app.delete('/suppliers/:name', (req, res) => {
+    const supplierName = req.params.name;
+
+    // Find the supplier by name
+    const supplier = suppliers.find(s => s.name === supplierName);
+
+    // If the supplier is not found, return a 404 error response
+    if (!supplier) {
+        return res.status(404).json({ error: 'Supplier not found' });
+    }
+
+    // Check if there are any products associated with this supplier
+    const productsFromSupplier = products.filter(p => p.supplier === supplierName);
+
+    // If there are products associated with this supplier, return a 400 error response
+    if (productsFromSupplier.length > 0) {
+        return res.status(400).json({ error: 'Cannot delete supplier with associated products' });
+    }
+
+    // Remove the supplier from the suppliers array
+    const supplierIndex = suppliers.indexOf(supplier);
+    if (supplierIndex !== -1) {
+        suppliers.splice(supplierIndex, 1);
+    }
+
+    // Return a success response
+    res.status(200).json({ message: 'Supplier deleted successfully' });
+});
+
 // Error handling middleware for unknown routes
 app.use((req, res, next) => {
     res.status(404).json({ error: 'Route not found' });
