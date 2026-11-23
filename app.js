@@ -21,6 +21,12 @@ const PORT = process.env.PORT || 3000;
  * It also includes the server setup to listen on the specified PORT.
  */
 
+/**
+ * Middlewares section: This section includes the necessary middlewares for the Express application, such as JSON parsing and CORS handling.
+ */
+
+app.use(express.json()); // Middleware to parse JSON request bodies
+
 // Define in-memory data storage for categories and products
 const categories = [];
 
