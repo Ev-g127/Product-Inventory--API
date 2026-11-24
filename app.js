@@ -17,16 +17,17 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 /**
- * Middlewares section: This section includes the necessary middlewares for the Express application, such as JSON parsing and CORS handling.
+ * Middlewares section: This section includes the middlewares applied to every request (JSON body parsing).
  */
 
 app.use(express.json()); // Middleware to parse JSON request bodies
 
 /**
- * In-memory data storage section: This section contains the in-memory data storage for products, categories, and suppliers. It also includes the server setup to listen on the specified PORT.
+ * In-memory data storage section: This section contains the in-memory data storage for products, categories, and suppliers,
+ * and the counters used to generate their ids.
  */
 
-// Define in-memory data storage for categories and products
+// Define in-memory data storage for categories
 const categories = [
     { id: 1, name: 'Category 1' },
     { id: 2, name: 'Category 2' },
@@ -44,20 +45,51 @@ const suppliers = [
 
 // Define in-memory data storage for products
 const products = [
-    { id: 1, sku: 'Product 1', price: 10.99, category: 'Category 1', supplier: 'Supplier 1' },
-    { id: 2, sku: 'Product 2', price: 15.99, category: 'Category 2', supplier: 'Supplier 2' },
-    { id: 3, sku: 'Product 3', price: 20.99, category: 'Category 3', supplier: 'Supplier 3' },
-    { id: 4, sku: 'Product 4', price: 25.99, category: 'Category 4', supplier: 'Supplier 4' }
+    { id: 1, sku: 'Product 1', name: 'Product One', price: 10.99, category: 'Category 1', supplier: 'Supplier 1' },
+    { id: 2, sku: 'Product 2', name: 'Product Two', price: 15.99, category: 'Category 2', supplier: 'Supplier 2' },
+    { id: 3, sku: 'Product 3', name: 'Product Three', price: 20.99, category: 'Category 3', supplier: 'Supplier 3' },
+    { id: 4, sku: 'Product 4', name: 'Product Four', price: 25.99, category: 'Category 4', supplier: 'Supplier 4' }
 ];
 
+// Next id to assign to a new product (never reused, even after a deletion)
+let nextProductId = products.reduce((maxId, p) => Math.max(maxId, p.id), 0) + 1;
+
+// Next ids to assign to new categories and suppliers (never reused, even after a deletion)
+let nextCategoryId = categories.reduce((maxId, c) => Math.max(maxId, c.id), 0) + 1;
+let nextSupplierId = suppliers.reduce((maxId, s) => Math.max(maxId, s.id), 0) + 1;
+
 /**
- * Products section: This section contains the in-memory data storage for products, categories, and suppliers. 
- * It also includes the server setup to listen on the specified PORT.
+ * Validation helpers section: small functions used by the routes to check the types of the request body fields.
  */
 
-// Define a route to get all products
+// Returns true if the value is a string that is not empty (or only spaces)
+const isNonEmptyString = value => typeof value === 'string' && value.trim() !== '';
+
+// Returns true if the value is a real number greater than or equal to 0
+const isValidPrice = value => typeof value === 'number' && Number.isFinite(value) && value >= 0;
+
+/**
+ * Products section: This section contains the routes to create, read, update, delete and search products.
+ */
+
+// Define a route to get all products, or only the products whose name contains
+// the text given in the query string, e.g. GET /products?name=phone (case-insensitive)
 app.get('/products', (req, res) => {
-    res.status(200).json(products);
+    const { name } = req.query;
+
+    // No name filter: return all the products
+    if (name === undefined) {
+        return res.status(200).json(products);
+    }
+
+    // The name filter must be one non-empty text (?name=a&name=b would give an array)
+    if (!isNonEmptyString(name)) {
+        return res.status(400).json({ error: 'name must be a non-empty string' });
+    }
+
+    const searchText = name.toLowerCase();
+    const matchingProducts = products.filter(p => p.name.toLowerCase().includes(searchText));
+    res.status(200).json(matchingProducts);
 });
 
 // Define a route to get a specific product by SKU
@@ -76,17 +108,31 @@ app.get('/products/:sku', (req, res) => {
 
 // Define a route to create a new product
 app.post('/products', (req, res) => {
-    const { sku, price, category, supplier } = req.body;
+    // In Express 5, req.body is undefined when no JSON body was sent
+    const { sku, name, price, category, supplier } = req.body ?? {};
 
     // Validate the request body to ensure all required fields are present
-    if(!sku || !price || !category || !supplier) {
+    if ([sku, name, price, category, supplier].some(field => field === undefined)) {
         return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Validate the types of the fields
+    if (!isNonEmptyString(sku)) {
+        return res.status(400).json({ error: 'sku must be a non-empty string' });
+    }
+
+    if (!isNonEmptyString(name)) {
+        return res.status(400).json({ error: 'name must be a non-empty string' });
+    }
+
+    if (!isValidPrice(price)) {
+        return res.status(400).json({ error: 'price must be a number greater than or equal to 0' });
     }
 
     // Check if a product with the same SKU already exists
     const existingProduct = products.find(p => p.sku === sku);
     if (existingProduct) {
-        return res.status(400).json({ error: 'Product with this SKU already exists' });
+        return res.status(409).json({ error: 'Product with this SKU already exists' });
     }
 
     // Check if the category is valid
@@ -100,7 +146,7 @@ app.post('/products', (req, res) => {
     }
 
     // Create a new product
-    const newProduct = { id: products.length + 1, sku, price, category, supplier };
+    const newProduct = { id: nextProductId++, sku, name, price, category, supplier };
     products.push(newProduct);
 
     // Return the created product
@@ -110,7 +156,7 @@ app.post('/products', (req, res) => {
 // Define a route to update a specific product by SKU
 app.patch('/products/:sku', (req, res) => {
     const productSku = req.params.sku;
-    const { price, category, supplier } = req.body;
+    const { name, price, category, supplier } = req.body ?? {};
 
     // Find the product by SKU
     const product = products.find(p => p.sku === productSku);
@@ -118,6 +164,15 @@ app.patch('/products/:sku', (req, res) => {
     // If the product is not found, return a 404 error response
     if (!product) {
         return res.status(404).json({ error: 'Product not found' });
+    }
+
+    // Validate the types of the fields that were sent
+    if (name !== undefined && !isNonEmptyString(name)) {
+        return res.status(400).json({ error: 'name must be a non-empty string' });
+    }
+
+    if (price !== undefined && !isValidPrice(price)) {
+        return res.status(400).json({ error: 'price must be a number greater than or equal to 0' });
     }
 
     // Check if the category is valid (part of the categories array)
@@ -130,10 +185,11 @@ app.patch('/products/:sku', (req, res) => {
         return res.status(400).json({ error: 'Invalid supplier' });
     }
 
-    // Update the product with the new values
-    product.price = price;
-    product.category = category;
-    product.supplier = supplier;
+    // Update only the fields that were sent in the request body (partial update)
+    if (name !== undefined) product.name = name;
+    if (price !== undefined) product.price = price;
+    if (category !== undefined) product.category = category;
+    if (supplier !== undefined) product.supplier = supplier;
 
     // Return the updated product
     res.status(200).json(product);
@@ -160,12 +216,35 @@ app.delete('/products/:sku', (req, res) => {
 
 
 /**
- * Categories section: This section contains the in-memory data storage for categories and the route to handle categories.
+ * Categories section: This section contains the routes to create, read, update and delete categories,
+ * and to list the products of a category.
  */
 
 // Define a route to get all categories
 app.get('/categories', (req, res) => {
     res.status(200).json(categories);
+});
+
+// Define a route to create a new category
+app.post('/categories', (req, res) => {
+    const { name } = req.body ?? {};
+
+    // Check that the name is a non-empty string
+    if (!isNonEmptyString(name)) {
+        return res.status(400).json({ error: 'name must be a non-empty string' });
+    }
+
+    // Check if a category with the same name already exists
+    if (categories.some(c => c.name === name)) {
+        return res.status(409).json({ error: 'Category with this name already exists' });
+    }
+
+    // Create the new category
+    const newCategory = { id: nextCategoryId++, name };
+    categories.push(newCategory);
+
+    // Return the created category
+    res.status(201).json(newCategory);
 });
 
 // Define a route to get a specific category by its name
@@ -192,11 +271,6 @@ app.get('/categories/:name/products', (req, res) => {
         return res.status(404).json({ error: 'Category not found' });
     }
 
-    // Check if the category is valid (part of the categories array)
-    if (!categories.some(c => c.name === categoryName)) {
-        return res.status(400).json({ error: 'Invalid category' });
-    }
-
     const productsInCategory = products.filter(p => p.category === categoryName);
     res.status(200).json(productsInCategory);
 });
@@ -204,7 +278,7 @@ app.get('/categories/:name/products', (req, res) => {
 // Define a route to update a specific category by its name
 app.patch('/categories/:name', (req, res) => {
     const categoryName = req.params.name;
-    const { newName } = req.body;
+    const { newName } = req.body ?? {};
 
     // Find the category by name
     const category = categories.find(c => c.name === categoryName);
@@ -214,22 +288,29 @@ app.patch('/categories/:name', (req, res) => {
         return res.status(404).json({ error: 'Category not found' });
     }
 
-    // If the new name is provided and is different from the current name
-    if (newName && newName !== categoryName) {
-        // Check if a category with the new name already exists
-        if (categories.some(c => c.name === newName)) {
-            return res.status(400).json({ error: 'Category with that name already exists' });
-        }
-
-        // Update the category name
-        category.name = newName;
+    // Check that the new name is a non-empty string
+    if (!isNonEmptyString(newName)) {
+        return res.status(400).json({ error: 'New name must be a non-empty string' });
     }
+
+    // If the new name is different from the current name, check if a category with this name already exists
+    if (newName !== categoryName && categories.some(c => c.name === newName)) {
+        return res.status(409).json({ error: 'Category with the new name already exists' });
+    }
+
+    // Update the category name
+    category.name = newName;
+
+    // Keep the products linked to this category in sync with the new name
+    products.forEach(p => {
+        if (p.category === categoryName) p.category = newName;
+    });
 
     // Return a success response
     res.status(200).json({ message: 'Category updated successfully', category });
 });
 
-// Delete a specific category by its name
+// Define a route to delete a specific category by its name
 app.delete('/categories/:name', (req, res) => {
     const categoryName = req.params.name;
 
@@ -244,7 +325,7 @@ app.delete('/categories/:name', (req, res) => {
     // Check if there are any products associated with this category
     const productsInCategory = products.filter(p => p.category === categoryName);
     if (productsInCategory.length > 0) {
-        return res.status(400).json({ error: 'Cannot delete category with associated products' });
+        return res.status(409).json({ error: 'Cannot delete category with associated products' });
     }
 
     // Remove the category from the categories array
@@ -259,12 +340,35 @@ app.delete('/categories/:name', (req, res) => {
 
 
 /**
- * Suppliers section: This section contains the in-memory data storage for suppliers and the route to handle suppliers.
+ * Suppliers section: This section contains the routes to create, read, update and delete suppliers,
+ * and to list the products of a supplier.
  */
 
 // Define a route to get all suppliers
 app.get('/suppliers', (req, res) => {
     res.status(200).json(suppliers);
+});
+
+// Define a route to create a new supplier
+app.post('/suppliers', (req, res) => {
+    const { name } = req.body ?? {};
+
+    // Check that the name is a non-empty string
+    if (!isNonEmptyString(name)) {
+        return res.status(400).json({ error: 'name must be a non-empty string' });
+    }
+
+    // Check if a supplier with the same name already exists
+    if (suppliers.some(s => s.name === name)) {
+        return res.status(409).json({ error: 'Supplier with this name already exists' });
+    }
+
+    // Create the new supplier
+    const newSupplier = { id: nextSupplierId++, name };
+    suppliers.push(newSupplier);
+
+    // Return the created supplier
+    res.status(201).json(newSupplier);
 });
 
 // Define a route to get a specific supplier by its name
@@ -291,22 +395,17 @@ app.get('/suppliers/:name/products', (req, res) => {
         return res.status(404).json({ error: 'Supplier not found' });
     }
 
-    // Check if the supplier is valid (part of the suppliers array)
-    if (!suppliers.some(s => s.name === supplierName)) {
-        return res.status(400).json({ error: 'Invalid supplier' });
-    }
-
     // Find all products associated with the supplier
-    const products = productData.filter(p => p.supplier === supplierName);
+    const productsFromSupplier = products.filter(p => p.supplier === supplierName);
 
     // Return the products as JSON
-    res.status(200).json(products);
+    res.status(200).json(productsFromSupplier);
 });
 
 // Define a route to update a specific supplier by its name
 app.patch('/suppliers/:name', (req, res) => {
     const supplierName = req.params.name;
-    const { newName } = req.body;
+    const { newName } = req.body ?? {};
 
     // Find the supplier by name
     const supplier = suppliers.find(s => s.name === supplierName);
@@ -316,24 +415,26 @@ app.patch('/suppliers/:name', (req, res) => {
         return res.status(404).json({ error: 'Supplier not found' });
     }
 
-    // If the new name is provided and is different from the current name
-    if (newName && newName !== supplierName) {
-        // Check if a supplier with the new name already exists
-        if (suppliers.some(s => s.name === newName)) {
-            return res.status(400).json({ error: 'Supplier with the new name already exists' });
-        }
+    // Check that the new name is a non-empty string
+    if (!isNonEmptyString(newName)) {
+        return res.status(400).json({ error: 'New name must be a non-empty string' });
     }
 
-    // Check if the new name is not empty or null
-    if (!newName || newName.trim() === '') {
-        return res.status(400).json({ error: 'New name cannot be empty' });
+    // If the new name is different from the current name, check if a supplier with this name already exists
+    if (newName !== supplierName && suppliers.some(s => s.name === newName)) {
+        return res.status(409).json({ error: 'Supplier with the new name already exists' });
     }
 
     // Update the supplier's name
     supplier.name = newName;
 
+    // Keep the products linked to this supplier in sync with the new name
+    products.forEach(p => {
+        if (p.supplier === supplierName) p.supplier = newName;
+    });
+
     // Return a success response
-    res.status(200).json({ message: 'Supplier updated successfully' });
+    res.status(200).json({ message: 'Supplier updated successfully', supplier });
 });
 
 // Define a route to delete a specific supplier by its name
@@ -351,9 +452,9 @@ app.delete('/suppliers/:name', (req, res) => {
     // Check if there are any products associated with this supplier
     const productsFromSupplier = products.filter(p => p.supplier === supplierName);
 
-    // If there are products associated with this supplier, return a 400 error response
+    // If there are products associated with this supplier, return a 409 Conflict error response
     if (productsFromSupplier.length > 0) {
-        return res.status(400).json({ error: 'Cannot delete supplier with associated products' });
+        return res.status(409).json({ error: 'Cannot delete supplier with associated products' });
     }
 
     // Remove the supplier from the suppliers array
@@ -366,9 +467,27 @@ app.delete('/suppliers/:name', (req, res) => {
     res.status(200).json({ message: 'Supplier deleted successfully' });
 });
 
-// Error handling middleware for unknown routes
+// Fallback middleware for unknown routes: answers 404 when no route above matched the request
 app.use((req, res, next) => {
     res.status(404).json({ error: 'Route not found' });
+});
+
+// Error handling middleware: catches errors thrown in the routes (and invalid JSON bodies)
+// and always answers in JSON, without sending the stack trace to the client
+app.use((err, req, res, next) => {
+    if (res.headersSent) {
+        return next(err);
+    }
+
+    const status = err.status || err.statusCode || 500;
+
+    // Log unexpected errors on the server side only
+    if (status >= 500) {
+        console.error(err);
+    }
+
+    // err.expose is true for client errors such as malformed JSON: their message is safe to send
+    res.status(status).json({ error: err.expose ? err.message : 'Internal server error' });
 });
 
 /**
