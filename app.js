@@ -29,18 +29,18 @@ app.use(express.json()); // Middleware to parse JSON request bodies
 
 // Define in-memory data storage for categories
 const categories = [
-    { id: 1, name: 'Category 1' },
-    { id: 2, name: 'Category 2' },
-    { id: 3, name: 'Category 3' },
-    { id: 4, name: 'Category 4' }
+    { id: 1, name: 'Category 1', description: 'Description of category 1' },
+    { id: 2, name: 'Category 2', description: 'Description of category 2' },
+    { id: 3, name: 'Category 3', description: 'Description of category 3' },
+    { id: 4, name: 'Category 4', description: 'Description of category 4' }
 ];
 
 // Define in-memory data storage for suppliers
 const suppliers = [
-    { id: 1, name: 'Supplier 1' },
-    { id: 2, name: 'Supplier 2' },
-    { id: 3, name: 'Supplier 3' },
-    { id: 4, name: 'Supplier 4' }
+    { id: 1, name: 'Supplier 1', contact: 'Contact 1', email: 'supplier1@example.com', phone: '+1 555 0101', address: '1 Main Street' },
+    { id: 2, name: 'Supplier 2', contact: 'Contact 2', email: 'supplier2@example.com', phone: '+1 555 0102', address: '2 Main Street' },
+    { id: 3, name: 'Supplier 3', contact: 'Contact 3', email: 'supplier3@example.com', phone: '+1 555 0103', address: '3 Main Street' },
+    { id: 4, name: 'Supplier 4', contact: 'Contact 4', email: 'supplier4@example.com', phone: '+1 555 0104', address: '4 Main Street' }
 ];
 
 // Define in-memory data storage for products
@@ -67,6 +67,19 @@ const isNonEmptyString = value => typeof value === 'string' && value.trim() !== 
 
 // Returns true if the value is a real number greater than or equal to 0
 const isValidPrice = value => typeof value === 'number' && Number.isFinite(value) && value >= 0;
+
+// Returns true if the value looks like an email address (simple check: text@text.text, without spaces)
+const isValidEmail = value => isNonEmptyString(value) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
+// Returns true if the two names are the same, ignoring upper and lower case ("Food" and "food")
+const isSameName = (nameA, nameB) => nameA.toLowerCase() === nameB.toLowerCase();
+
+// Returns the names of the fields whose value is missing, e.g. findMissingFields({ name, email }) => ['email']
+const findMissingFields = fields => Object.keys(fields).filter(key => fields[key] === undefined);
+
+// Returns the name of the first field that is not a non-empty string, or undefined if they are all valid.
+// Fields that were not sent (undefined) are skipped, so it also works for partial updates.
+const findInvalidTextField = fields => Object.keys(fields).find(key => fields[key] !== undefined && !isNonEmptyString(fields[key]));
 
 /**
  * Products section: This section contains the routes to create, read, update, delete and search products.
@@ -227,24 +240,31 @@ app.get('/categories', (req, res) => {
 
 // Define a route to create a new category
 app.post('/categories', (req, res) => {
-    const { name } = req.body ?? {};
+    const { name, description } = req.body ?? {};
 
-    // Check that the name is a non-empty string
-    if (!isNonEmptyString(name)) {
-        return res.status(400).json({ error: 'name must be a non-empty string' });
+    // Validate the request body to ensure all required fields are present
+    const missingFields = findMissingFields({ name, description });
+    if (missingFields.length > 0) {
+        return res.status(400).json({ error: `Missing required fields: ${missingFields.join(', ')}` });
     }
 
-    // Check if a category with the same name already exists
-    if (categories.some(c => c.name === name)) {
+    // Validate the types of the fields
+    const invalidField = findInvalidTextField({ name, description });
+    if (invalidField) {
+        return res.status(400).json({ error: `${invalidField} must be a non-empty string` });
+    }
+
+    // Check if a category with the same name already exists (case-insensitive)
+    if (categories.some(c => isSameName(c.name, name))) {
         return res.status(409).json({ error: 'Category with this name already exists' });
     }
 
     // Create the new category
-    const newCategory = { id: nextCategoryId++, name };
+    const newCategory = { id: nextCategoryId++, name, description };
     categories.push(newCategory);
 
     // Return the created category
-    res.status(201).json(newCategory);
+    res.status(201).json({ message: 'Category created successfully', category: newCategory });
 });
 
 // Define a route to get a specific category by its name
@@ -275,29 +295,10 @@ app.get('/categories/:name/products', (req, res) => {
     res.status(200).json(productsInCategory);
 });
 
-// Create a new category
-app.post('/categories', (req, res) => {
-  const { name, description } = req.body;
-
-  if (!name || !description) {
-    return res.status(400).json({ error: `Missing required fields: name and description are required` });
-  }
-
-  const exists = categories.find((c) => c.name.toLowerCase() === name.toLowerCase());
-  if (exists) {
-    return res.status(409).json({ error: `Category '${name}' already exists` });
-  }
-
-  const newCategory = { name, description };
-  categories.push(newCategory);
-
-  res.status(201).json({ message: `Category '${name}' created successfully`, category: newCategory });
-});
-
-// Define a route to update a specific category by its name
+// Define a route to update a specific category by its name (rename it and/or change its description)
 app.patch('/categories/:name', (req, res) => {
     const categoryName = req.params.name;
-    const { newName } = req.body ?? {};
+    const { newName, description } = req.body ?? {};
 
     // Find the category by name
     const category = categories.find(c => c.name === categoryName);
@@ -307,23 +308,33 @@ app.patch('/categories/:name', (req, res) => {
         return res.status(404).json({ error: 'Category not found' });
     }
 
-    // Check that the new name is a non-empty string
-    if (!isNonEmptyString(newName)) {
-        return res.status(400).json({ error: 'New name must be a non-empty string' });
+    // At least one field to update must be sent
+    if (newName === undefined && description === undefined) {
+        return res.status(400).json({ error: 'Nothing to update: send newName and/or description' });
     }
 
-    // If the new name is different from the current name, check if a category with this name already exists
-    if (newName !== categoryName && categories.some(c => c.name === newName)) {
+    // Validate the types of the fields that were sent
+    const invalidField = findInvalidTextField({ newName, description });
+    if (invalidField) {
+        return res.status(400).json({ error: `${invalidField} must be a non-empty string` });
+    }
+
+    // Check if another category already has the new name (case-insensitive)
+    if (newName !== undefined && categories.some(c => c !== category && isSameName(c.name, newName))) {
         return res.status(409).json({ error: 'Category with the new name already exists' });
     }
 
-    // Update the category name
-    category.name = newName;
+    // Update only the fields that were sent in the request body (partial update)
+    if (description !== undefined) category.description = description;
 
-    // Keep the products linked to this category in sync with the new name
-    products.forEach(p => {
-        if (p.category === categoryName) p.category = newName;
-    });
+    if (newName !== undefined) {
+        category.name = newName;
+
+        // Keep the products linked to this category in sync with the new name
+        products.forEach(p => {
+            if (p.category === categoryName) p.category = newName;
+        });
+    }
 
     // Return a success response
     res.status(200).json({ message: 'Category updated successfully', category });
@@ -370,24 +381,35 @@ app.get('/suppliers', (req, res) => {
 
 // Define a route to create a new supplier
 app.post('/suppliers', (req, res) => {
-    const { name } = req.body ?? {};
+    const { name, contact, email, phone, address } = req.body ?? {};
 
-    // Check that the name is a non-empty string
-    if (!isNonEmptyString(name)) {
-        return res.status(400).json({ error: 'name must be a non-empty string' });
+    // Validate the request body to ensure all required fields are present
+    const missingFields = findMissingFields({ name, contact, email, phone, address });
+    if (missingFields.length > 0) {
+        return res.status(400).json({ error: `Missing required fields: ${missingFields.join(', ')}` });
     }
 
-    // Check if a supplier with the same name already exists
-    if (suppliers.some(s => s.name === name)) {
+    // Validate the types of the fields
+    const invalidField = findInvalidTextField({ name, contact, email, phone, address });
+    if (invalidField) {
+        return res.status(400).json({ error: `${invalidField} must be a non-empty string` });
+    }
+
+    if (!isValidEmail(email)) {
+        return res.status(400).json({ error: 'email must be a valid email address' });
+    }
+
+    // Check if a supplier with the same name already exists (case-insensitive)
+    if (suppliers.some(s => isSameName(s.name, name))) {
         return res.status(409).json({ error: 'Supplier with this name already exists' });
     }
 
     // Create the new supplier
-    const newSupplier = { id: nextSupplierId++, name };
+    const newSupplier = { id: nextSupplierId++, name, contact, email, phone, address };
     suppliers.push(newSupplier);
 
     // Return the created supplier
-    res.status(201).json(newSupplier);
+    res.status(201).json({ message: 'Supplier created successfully', supplier: newSupplier });
 });
 
 // Define a route to get a specific supplier by its name
@@ -421,29 +443,10 @@ app.get('/suppliers/:name/products', (req, res) => {
     res.status(200).json(productsFromSupplier);
 });
 
-// Create a new supplier
-app.post('/suppliers', (req, res) => {
-  const { name, contact, email, phone, address } = req.body;
-
-  if (!name || !contact || !email || !phone || !address) {
-    return res.status(400).json({ error: `Missing required fields: name, contact, email, phone and address are required` });
-  }
-
-  const exists = suppliers.find((s) => s.name.toLowerCase() === name.toLowerCase());
-  if (exists) {
-    return res.status(409).json({ error: `Supplier '${name}' already exists` });
-  }
-
-  const newSupplier = { name, contact, email, phone, address, products: [] };
-  suppliers.push(newSupplier);
-
-  res.status(201).json({ message: `Supplier '${name}' created successfully`, supplier: newSupplier });
-});
-
-// Define a route to update a specific supplier by its name
+// Define a route to update a specific supplier by its name (rename it and/or change its contact details)
 app.patch('/suppliers/:name', (req, res) => {
     const supplierName = req.params.name;
-    const { newName } = req.body ?? {};
+    const { newName, contact, email, phone, address } = req.body ?? {};
 
     // Find the supplier by name
     const supplier = suppliers.find(s => s.name === supplierName);
@@ -453,23 +456,40 @@ app.patch('/suppliers/:name', (req, res) => {
         return res.status(404).json({ error: 'Supplier not found' });
     }
 
-    // Check that the new name is a non-empty string
-    if (!isNonEmptyString(newName)) {
-        return res.status(400).json({ error: 'New name must be a non-empty string' });
+    // At least one field to update must be sent
+    if ([newName, contact, email, phone, address].every(field => field === undefined)) {
+        return res.status(400).json({ error: 'Nothing to update: send newName, contact, email, phone and/or address' });
     }
 
-    // If the new name is different from the current name, check if a supplier with this name already exists
-    if (newName !== supplierName && suppliers.some(s => s.name === newName)) {
+    // Validate the types of the fields that were sent
+    const invalidField = findInvalidTextField({ newName, contact, email, phone, address });
+    if (invalidField) {
+        return res.status(400).json({ error: `${invalidField} must be a non-empty string` });
+    }
+
+    if (email !== undefined && !isValidEmail(email)) {
+        return res.status(400).json({ error: 'email must be a valid email address' });
+    }
+
+    // Check if another supplier already has the new name (case-insensitive)
+    if (newName !== undefined && suppliers.some(s => s !== supplier && isSameName(s.name, newName))) {
         return res.status(409).json({ error: 'Supplier with the new name already exists' });
     }
 
-    // Update the supplier's name
-    supplier.name = newName;
+    // Update only the fields that were sent in the request body (partial update)
+    if (contact !== undefined) supplier.contact = contact;
+    if (email !== undefined) supplier.email = email;
+    if (phone !== undefined) supplier.phone = phone;
+    if (address !== undefined) supplier.address = address;
 
-    // Keep the products linked to this supplier in sync with the new name
-    products.forEach(p => {
-        if (p.supplier === supplierName) p.supplier = newName;
-    });
+    if (newName !== undefined) {
+        supplier.name = newName;
+
+        // Keep the products linked to this supplier in sync with the new name
+        products.forEach(p => {
+            if (p.supplier === supplierName) p.supplier = newName;
+        });
+    }
 
     // Return a success response
     res.status(200).json({ message: 'Supplier updated successfully', supplier });
