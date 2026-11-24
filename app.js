@@ -201,6 +201,25 @@ app.get('/categories/:name/products', (req, res) => {
     res.status(200).json(productsInCategory);
 });
 
+// Create a new category
+app.post('/categories', (req, res) => {
+  const { name, description } = req.body;
+
+  if (!name || !description) {
+    return res.status(400).json({ error: `Missing required fields: name and description are required` });
+  }
+
+  const exists = categories.find((c) => c.name.toLowerCase() === name.toLowerCase());
+  if (exists) {
+    return res.status(409).json({ error: `Category '${name}' already exists` });
+  }
+
+  const newCategory = { name, description };
+  categories.push(newCategory);
+
+  res.status(201).json({ message: `Category '${name}' created successfully`, category: newCategory });
+});
+
 // Define a route to update a specific category by its name
 app.patch('/categories/:name', (req, res) => {
     const categoryName = req.params.name;
@@ -301,6 +320,25 @@ app.get('/suppliers/:name/products', (req, res) => {
 
     // Return the products as JSON
     res.status(200).json(products);
+});
+
+// Create a new supplier
+app.post('/suppliers', (req, res) => {
+  const { name, contact, email, phone, address } = req.body;
+
+  if (!name || !contact || !email || !phone || !address) {
+    return res.status(400).json({ error: `Missing required fields: name, contact, email, phone and address are required` });
+  }
+
+  const exists = suppliers.find((s) => s.name.toLowerCase() === name.toLowerCase());
+  if (exists) {
+    return res.status(409).json({ error: `Supplier '${name}' already exists` });
+  }
+
+  const newSupplier = { name, contact, email, phone, address, products: [] };
+  suppliers.push(newSupplier);
+
+  res.status(201).json({ message: `Supplier '${name}' created successfully`, supplier: newSupplier });
 });
 
 // Define a route to update a specific supplier by its name
