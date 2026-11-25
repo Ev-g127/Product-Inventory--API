@@ -24,7 +24,7 @@ app.use(express.json()); // Middleware to parse JSON request bodies
 
 /**
  * In-memory data storage section: This section contains the in-memory data storage for products, categories, suppliers,
- * and stock movements, and the counters used to generate their ids.
+ * warehouses, and stock movements, and the counters used to generate their ids.
  */
 
 // Define in-memory data storage for categories
@@ -43,13 +43,33 @@ const suppliers = [
     { id: 4, name: 'Supplier 4', contact: 'Contact 4', email: 'supplier4@example.com', phone: '+1 555 0104', address: '4 Main Street' }
 ];
 
+// Define in-memory data storage for warehouses
+const warehouses = [
+    { id: 1, name: 'Warehouse 1', address: '1 Storage Street' },
+    { id: 2, name: 'Warehouse 2', address: '2 Storage Street' },
+    { id: 3, name: 'Warehouse 3', address: '3 Storage Street' }
+];
+
 // Define in-memory data storage for products.
-// quantity is the number of units in stock. The stock is low when quantity is lower than or equal to lowStockThreshold.
+// stock is the number of units in each warehouse (only the warehouses that have some), and quantity is the total.
+// The stock is low when quantity is lower than or equal to lowStockThreshold.
 const products = [
-    { id: 1, sku: 'Product 1', name: 'Product One', price: 10.99, category: 'Category 1', supplier: 'Supplier 1', quantity: 20, lowStockThreshold: 5 },
-    { id: 2, sku: 'Product 2', name: 'Product Two', price: 15.99, category: 'Category 2', supplier: 'Supplier 2', quantity: 5, lowStockThreshold: 5 },
-    { id: 3, sku: 'Product 3', name: 'Product Three', price: 20.99, category: 'Category 3', supplier: 'Supplier 3', quantity: 0, lowStockThreshold: 5 },
-    { id: 4, sku: 'Product 4', name: 'Product Four', price: 25.99, category: 'Category 4', supplier: 'Supplier 4', quantity: 50, lowStockThreshold: 5 }
+    {
+        id: 1, sku: 'Product 1', name: 'Product One', price: 10.99, category: 'Category 1', supplier: 'Supplier 1', quantity: 20, lowStockThreshold: 5,
+        stock: [{ warehouse: 'Warehouse 1', quantity: 15 }, { warehouse: 'Warehouse 2', quantity: 5 }]
+    },
+    {
+        id: 2, sku: 'Product 2', name: 'Product Two', price: 15.99, category: 'Category 2', supplier: 'Supplier 2', quantity: 5, lowStockThreshold: 5,
+        stock: [{ warehouse: 'Warehouse 1', quantity: 5 }]
+    },
+    {
+        id: 3, sku: 'Product 3', name: 'Product Three', price: 20.99, category: 'Category 3', supplier: 'Supplier 3', quantity: 0, lowStockThreshold: 5,
+        stock: []
+    },
+    {
+        id: 4, sku: 'Product 4', name: 'Product Four', price: 25.99, category: 'Category 4', supplier: 'Supplier 4', quantity: 50, lowStockThreshold: 5,
+        stock: [{ warehouse: 'Warehouse 2', quantity: 30 }, { warehouse: 'Warehouse 3', quantity: 20 }]
+    }
 ];
 
 // Define in-memory data storage for stock movements (empty at startup, filled by POST /products/:sku/movements).
@@ -59,9 +79,10 @@ const movements = [];
 // Next id to assign to a new product (never reused, even after a deletion)
 let nextProductId = products.reduce((maxId, p) => Math.max(maxId, p.id), 0) + 1;
 
-// Next ids to assign to new categories and suppliers (never reused, even after a deletion)
+// Next ids to assign to new categories, suppliers and warehouses (never reused, even after a deletion)
 let nextCategoryId = categories.reduce((maxId, c) => Math.max(maxId, c.id), 0) + 1;
 let nextSupplierId = suppliers.reduce((maxId, s) => Math.max(maxId, s.id), 0) + 1;
+let nextWarehouseId = warehouses.reduce((maxId, w) => Math.max(maxId, w.id), 0) + 1;
 
 // Next id to assign to a new stock movement
 let nextMovementId = 1;
@@ -97,6 +118,31 @@ const findMissingFields = fields => Object.keys(fields).filter(key => fields[key
 // Returns the name of the first field that is not a non-empty string, or undefined if they are all valid.
 // Fields that were not sent (undefined) are skipped, so it also works for partial updates.
 const findInvalidTextField = fields => Object.keys(fields).find(key => fields[key] !== undefined && !isNonEmptyString(fields[key]));
+
+/**
+ * Stock helpers section: small functions used by the routes to read and change the units of a product in a warehouse.
+ */
+
+// Returns the number of units of a product in a warehouse (0 if there are none)
+const getWarehouseQuantity = (product, warehouseName) => {
+    const stockLine = product.stock.find(s => s.warehouse === warehouseName);
+    return stockLine ? stockLine.quantity : 0;
+};
+
+// Adds units of a product to a warehouse, or removes some if the number of units is negative
+const changeWarehouseQuantity = (product, warehouseName, units) => {
+    const stockLine = product.stock.find(s => s.warehouse === warehouseName);
+
+    if (stockLine) {
+        stockLine.quantity += units;
+    } else {
+        product.stock.push({ warehouse: warehouseName, quantity: units });
+    }
+
+    // Keep only the warehouses that still have units, and calculate the new total
+    product.stock = product.stock.filter(s => s.quantity > 0);
+    product.quantity = product.stock.reduce((total, s) => total + s.quantity, 0);
+};
 
 /**
  * Products section: This section contains the routes to create, read, update, delete and search products.
@@ -139,8 +185,8 @@ app.get('/products/:sku', (req, res) => {
 // Define a route to create a new product
 app.post('/products', (req, res) => {
     // In Express 5, req.body is undefined when no JSON body was sent
-    // quantity and lowStockThreshold are optional: by default, the stock is empty and the threshold is 5 units
-    const { price, quantity = 0, lowStockThreshold = 5 } = req.body ?? {};
+    // lowStockThreshold is optional: by default, the threshold is 5 units
+    const { price, quantity, stock, lowStockThreshold = 5 } = req.body ?? {};
     const sku = trimText(req.body?.sku);
     const name = trimText(req.body?.name);
     const category = trimText(req.body?.category);
@@ -149,6 +195,11 @@ app.post('/products', (req, res) => {
     // Validate the request body to ensure all required fields are present
     if ([sku, name, price, category, supplier].some(field => field === undefined)) {
         return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // A new product has no units: they arrive through stock movements, which say in which warehouse they are
+    if (quantity !== undefined || stock !== undefined) {
+        return res.status(400).json({ error: 'quantity and stock cannot be set here: create the product, then use POST /products/:sku/movements' });
     }
 
     // Validate the types of the fields
@@ -162,10 +213,6 @@ app.post('/products', (req, res) => {
 
     if (!isValidPrice(price)) {
         return res.status(400).json({ error: 'price must be a number greater than or equal to 0, with 2 decimals at most' });
-    }
-
-    if (!isValidQuantity(quantity)) {
-        return res.status(400).json({ error: 'quantity must be a whole number greater than or equal to 0' });
     }
 
     if (!isValidQuantity(lowStockThreshold)) {
@@ -189,7 +236,7 @@ app.post('/products', (req, res) => {
     }
 
     // Create a new product
-    const newProduct = { id: nextProductId++, sku, name, price, category, supplier, quantity, lowStockThreshold };
+    const newProduct = { id: nextProductId++, sku, name, price, category, supplier, quantity: 0, lowStockThreshold, stock: [] };
     products.push(newProduct);
 
     // Return the created product
@@ -217,9 +264,9 @@ app.patch('/products/:sku', (req, res) => {
         return res.status(400).json({ error: 'sku cannot be updated' });
     }
 
-    // The quantity only changes through stock movements, so that every change is kept in the history
-    if (req.body?.quantity !== undefined) {
-        return res.status(400).json({ error: 'quantity cannot be updated here: use POST /products/:sku/movements' });
+    // The stock only changes through stock movements, so that every change is kept in the history
+    if (req.body?.quantity !== undefined || req.body?.stock !== undefined) {
+        return res.status(400).json({ error: 'quantity and stock cannot be updated here: use POST /products/:sku/movements' });
     }
 
     // At least one field to update must be sent
@@ -282,7 +329,7 @@ app.delete('/products/:sku', (req, res) => {
 
 
 /**
- * Stock movements section: This section contains the routes to add or remove units of a product,
+ * Stock movements section: This section contains the routes to add, remove or transfer units of a product,
  * and to read the history of these changes.
  */
 
@@ -300,11 +347,14 @@ app.get('/products/:sku/movements', (req, res) => {
     res.status(200).json(productMovements);
 });
 
-// Define a route to add units to the stock of a product (type 'in') or to remove some (type 'out')
+// Define a route to move units of a product: into a warehouse (type 'in'), out of a warehouse (type 'out'),
+// or from a warehouse to another one (type 'transfer')
 app.post('/products/:sku/movements', (req, res) => {
     const productSku = req.params.sku;
     const { type, quantity } = req.body ?? {};
     const reason = trimText(req.body?.reason);
+    const from = trimText(req.body?.from);
+    const to = trimText(req.body?.to);
 
     // Find the product by SKU
     const product = products.find(p => p.sku === productSku);
@@ -321,11 +371,11 @@ app.post('/products/:sku/movements', (req, res) => {
     }
 
     // Validate the types of the fields
-    if (type !== 'in' && type !== 'out') {
-        return res.status(400).json({ error: "type must be 'in' or 'out'" });
+    if (type !== 'in' && type !== 'out' && type !== 'transfer') {
+        return res.status(400).json({ error: "type must be 'in', 'out' or 'transfer'" });
     }
 
-    // The quantity is always positive: the type says if the units are added or removed
+    // The quantity is always positive: the type says where the units go
     if (!isValidQuantity(quantity) || quantity === 0) {
         return res.status(400).json({ error: 'quantity must be a whole number greater than 0' });
     }
@@ -334,20 +384,51 @@ app.post('/products/:sku/movements', (req, res) => {
         return res.status(400).json({ error: 'reason must be a non-empty string' });
     }
 
-    // Check if there are enough units in stock
-    if (type === 'out' && quantity > product.quantity) {
-        return res.status(409).json({ error: `Not enough stock: only ${product.quantity} available` });
+    // Check that the right warehouses were sent: 'in' only uses to, 'out' only uses from, and 'transfer' uses both
+    if (type === 'in' && (to === undefined || from !== undefined)) {
+        return res.status(400).json({ error: "type 'in' needs a warehouse in 'to' only" });
     }
 
-    // Everything is valid: update the stock and keep the movement in the history
-    product.quantity += type === 'in' ? quantity : -quantity;
+    if (type === 'out' && (from === undefined || to !== undefined)) {
+        return res.status(400).json({ error: "type 'out' needs a warehouse in 'from' only" });
+    }
 
+    if (type === 'transfer' && (from === undefined || to === undefined)) {
+        return res.status(400).json({ error: "type 'transfer' needs a warehouse in 'from' and in 'to'" });
+    }
+
+    // Check if the warehouses are valid (part of the warehouses array)
+    if (from !== undefined && !warehouses.some(w => w.name === from)) {
+        return res.status(400).json({ error: 'Invalid warehouse in from' });
+    }
+
+    if (to !== undefined && !warehouses.some(w => w.name === to)) {
+        return res.status(400).json({ error: 'Invalid warehouse in to' });
+    }
+
+    if (from === to) {
+        return res.status(400).json({ error: 'from and to must be two different warehouses' });
+    }
+
+    // Check if there are enough units in the warehouse that they leave
+    if (from !== undefined && quantity > getWarehouseQuantity(product, from)) {
+        return res.status(409).json({ error: `Not enough stock in ${from}: only ${getWarehouseQuantity(product, from)} available` });
+    }
+
+    // Everything is valid: move the units and keep the movement in the history
+    if (from !== undefined) changeWarehouseQuantity(product, from, -quantity);
+    if (to !== undefined) changeWarehouseQuantity(product, to, quantity);
+
+    // from or to is undefined when the type does not use it: undefined fields are not part of the JSON response
     const newMovement = {
         id: nextMovementId++,
         productId: product.id,
+        sku: product.sku,
         type,
         quantity,
         reason,
+        from,
+        to,
         stockAfter: product.quantity,
         date: new Date().toISOString()
     };
@@ -355,6 +436,174 @@ app.post('/products/:sku/movements', (req, res) => {
 
     // Return the created movement
     res.status(201).json(newMovement);
+});
+
+
+/**
+ * Warehouses section: This section contains the routes to create, read, update and delete warehouses,
+ * and to list the products and the stock movements of a warehouse.
+ */
+
+// Define a route to get all warehouses
+app.get('/warehouses', (req, res) => {
+    res.status(200).json(warehouses);
+});
+
+// Define a route to create a new warehouse
+app.post('/warehouses', (req, res) => {
+    const { address } = req.body ?? {};
+    const name = trimText(req.body?.name);
+
+    // Validate the request body to ensure all required fields are present
+    const missingFields = findMissingFields({ name, address });
+    if (missingFields.length > 0) {
+        return res.status(400).json({ error: `Missing required fields: ${missingFields.join(', ')}` });
+    }
+
+    // Validate the types of the fields
+    const invalidField = findInvalidTextField({ name, address });
+    if (invalidField) {
+        return res.status(400).json({ error: `${invalidField} must be a non-empty string` });
+    }
+
+    // Check if a warehouse with the same name already exists (case-insensitive)
+    if (warehouses.some(w => isSameName(w.name, name))) {
+        return res.status(409).json({ error: 'Warehouse with this name already exists' });
+    }
+
+    // Create the new warehouse
+    const newWarehouse = { id: nextWarehouseId++, name, address };
+    warehouses.push(newWarehouse);
+
+    // Return the created warehouse
+    res.status(201).json({ message: 'Warehouse created successfully', warehouse: newWarehouse });
+});
+
+// Define a route to get a specific warehouse by its name
+app.get('/warehouses/:name', (req, res) => {
+    const warehouseName = req.params.name;
+    const warehouse = warehouses.find(w => w.name === warehouseName);
+
+    // If the warehouse is not found, return a 404 error response
+    if (!warehouse) {
+        return res.status(404).json({ error: 'Warehouse not found' });
+    }
+
+    // If the warehouse is found, return the warehouse data as JSON
+    res.status(200).json(warehouse);
+});
+
+// Define a route to get the products of a warehouse, with the number of units in this warehouse only
+app.get('/warehouses/:name/products', (req, res) => {
+    const warehouseName = req.params.name;
+    const warehouse = warehouses.find(w => w.name === warehouseName);
+
+    // If the warehouse is not found, return a 404 error response
+    if (!warehouse) {
+        return res.status(404).json({ error: 'Warehouse not found' });
+    }
+
+    const productsInWarehouse = products
+        .filter(p => getWarehouseQuantity(p, warehouseName) > 0)
+        .map(p => ({ sku: p.sku, name: p.name, quantity: getWarehouseQuantity(p, warehouseName) }));
+    res.status(200).json(productsInWarehouse);
+});
+
+// Define a route to get the stock movements of a warehouse (units that arrived or left), from the oldest to the newest
+app.get('/warehouses/:name/movements', (req, res) => {
+    const warehouseName = req.params.name;
+    const warehouse = warehouses.find(w => w.name === warehouseName);
+
+    // If the warehouse is not found, return a 404 error response
+    if (!warehouse) {
+        return res.status(404).json({ error: 'Warehouse not found' });
+    }
+
+    const warehouseMovements = movements.filter(m => m.from === warehouseName || m.to === warehouseName);
+    res.status(200).json(warehouseMovements);
+});
+
+// Define a route to update a specific warehouse by its name (rename it and/or change its address)
+app.patch('/warehouses/:name', (req, res) => {
+    const warehouseName = req.params.name;
+    const { address } = req.body ?? {};
+    const newName = trimText(req.body?.newName);
+
+    // Find the warehouse by name
+    const warehouse = warehouses.find(w => w.name === warehouseName);
+
+    // If the warehouse is not found, return a 404 error response
+    if (!warehouse) {
+        return res.status(404).json({ error: 'Warehouse not found' });
+    }
+
+    // At least one field to update must be sent
+    if (newName === undefined && address === undefined) {
+        return res.status(400).json({ error: 'Nothing to update: send newName and/or address' });
+    }
+
+    // Validate the types of the fields that were sent
+    const invalidField = findInvalidTextField({ newName, address });
+    if (invalidField) {
+        return res.status(400).json({ error: `${invalidField} must be a non-empty string` });
+    }
+
+    // Check if another warehouse already has the new name (case-insensitive)
+    if (newName !== undefined && warehouses.some(w => w !== warehouse && isSameName(w.name, newName))) {
+        return res.status(409).json({ error: 'Warehouse with the new name already exists' });
+    }
+
+    // Update only the fields that were sent in the request body (partial update)
+    if (address !== undefined) warehouse.address = address;
+
+    if (newName !== undefined) {
+        warehouse.name = newName;
+
+        // Keep the stock of the products in sync with the new name
+        products.forEach(p => {
+            p.stock.forEach(s => {
+                if (s.warehouse === warehouseName) s.warehouse = newName;
+            });
+        });
+
+        // Keep the history of the movements in sync with the new name
+        movements.forEach(m => {
+            if (m.from === warehouseName) m.from = newName;
+            if (m.to === warehouseName) m.to = newName;
+        });
+    }
+
+    // Return a success response
+    res.status(200).json({ message: 'Warehouse updated successfully', warehouse });
+});
+
+// Define a route to delete a specific warehouse by its name
+app.delete('/warehouses/:name', (req, res) => {
+    const warehouseName = req.params.name;
+
+    // Find the warehouse by name
+    const warehouse = warehouses.find(w => w.name === warehouseName);
+
+    // If the warehouse is not found, return a 404 error response
+    if (!warehouse) {
+        return res.status(404).json({ error: 'Warehouse not found' });
+    }
+
+    // Check if there are units of a product in this warehouse
+    if (products.some(p => getWarehouseQuantity(p, warehouseName) > 0)) {
+        return res.status(409).json({ error: 'Cannot delete warehouse with products in stock' });
+    }
+
+    // Check if the history uses this warehouse, so that it never mentions a warehouse that does not exist
+    if (movements.some(m => m.from === warehouseName || m.to === warehouseName)) {
+        return res.status(409).json({ error: 'Cannot delete warehouse with stock movements' });
+    }
+
+    // Remove the warehouse from the warehouses array
+    warehouses.splice(warehouses.indexOf(warehouse), 1);
+
+    // Return a success response
+    res.status(200).json({ message: 'Warehouse deleted successfully' });
 });
 
 
