@@ -390,13 +390,26 @@ Every error is returned as JSON:
 | `409 Conflict` | The SKU or name is already used, there is not enough stock in the warehouse, or a deletion is blocked because products or stock movements still use the category, supplier or warehouse |
 | `500 Internal Server Error` | Unexpected server error (details are only written in the server logs) |
 
+## Postman
+
+The `postman/` folder contains two collections. In Postman, click **Import** and select both files.
+
+| File | Content |
+|---|---|
+| `product-inventory.postman_collection.json` | Every route with its error cases: 78 requests and 232 tests |
+| `product-inventory-demo.postman_collection.json` | The 13 requests of the demo, in order. The scenario is in `DEMO.md` |
+
+- Start the server before you send the requests. The address of the API is in the collection variable `baseUrl` (default: `http://localhost:3000`).
+- To run all the tests, open the menu of the first collection and choose **Run**. It deletes what it creates, so it can be run several times.
+- Restart the server before the demo: it expects the sample data.
+
 ## Project structure
 
 ```
 Product-Inventory--API/
 ├── app.js          # Express app: middlewares, in-memory data, routes, error handling, server start
 ├── package.json    # Dependencies and npm scripts
-├── postman/        # Postman files used to test the API
+├── postman/        # Postman collections (tests and demo) and demo scenario
 ├── .postman/       # Postman workspace configuration
 └── .env            # Optional, not committed: PORT
 ```

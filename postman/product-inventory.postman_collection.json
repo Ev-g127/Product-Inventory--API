@@ -1,0 +1,3476 @@
+{
+	"info": {
+		"name": "Product Inventory API",
+		"description": "Every route of the API, with its error cases and its tests.\n\nStart the server (npm run dev), then run the whole collection. It deletes what it creates, so it can be run several times. If a run was stopped in the middle, restart the server first.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1. Products",
+			"description": "Creates the product POSTMAN-1 and deletes it at the end.",
+			"item": [
+				{
+					"name": "List all products",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"The answer is a list of products\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body).to.be.an(\"array\").that.is.not.empty;",
+									"    body.forEach(p => pm.expect(p).to.include.all.keys(\"id\", \"sku\", \"name\", \"price\", \"category\", \"supplier\", \"quantity\", \"lowStockThreshold\", \"stock\"));",
+									"});",
+									"",
+									"pm.test(\"The quantity is the total of the warehouses\", function () {",
+									"    const body = pm.response.json();",
+									"    body.forEach(p => {",
+									"        const total = p.stock.reduce((sum, s) => sum + s.quantity, 0);",
+									"        pm.expect(p.quantity).to.eql(total);",
+									"    });",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/products",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Search products by name",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Product 2 is found, and only names that contain 'two'\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.map(p => p.sku)).to.include(\"Product 2\");",
+									"    body.forEach(p => pm.expect(p.name.toLowerCase()).to.include(\"two\"));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/products?name=TWO",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products"
+							],
+							"query": [
+								{
+									"key": "name",
+									"value": "TWO"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Filter by category",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Every product is in Category 1\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body).to.be.an(\"array\").that.is.not.empty;",
+									"    body.forEach(p => pm.expect(p.category).to.eql(\"Category 1\"));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/products?category=Category%201",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products"
+							],
+							"query": [
+								{
+									"key": "category",
+									"value": "Category%201"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Filter by supplier",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Every product comes from Supplier 2\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body).to.be.an(\"array\").that.is.not.empty;",
+									"    body.forEach(p => pm.expect(p.supplier).to.eql(\"Supplier 2\"));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/products?supplier=Supplier%202",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products"
+							],
+							"query": [
+								{
+									"key": "supplier",
+									"value": "Supplier%202"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Filter by price",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Every price is between 15 and 21\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body).to.be.an(\"array\").that.is.not.empty;",
+									"    body.forEach(p => pm.expect(p.price).to.be.within(15, 21));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/products?minPrice=15&maxPrice=21",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products"
+							],
+							"query": [
+								{
+									"key": "minPrice",
+									"value": "15"
+								},
+								{
+									"key": "maxPrice",
+									"value": "21"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Filter the low stocks",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Every stock is low\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body).to.be.an(\"array\").that.is.not.empty;",
+									"    body.forEach(p => pm.expect(p.quantity).to.be.at.most(p.lowStockThreshold));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/products?lowStock=true",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products"
+							],
+							"query": [
+								{
+									"key": "lowStock",
+									"value": "true"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Sort by price, highest first",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"The prices go down\", function () {",
+									"    const body = pm.response.json();",
+									"    for (let i = 1; i < body.length; i++) {",
+									"        pm.expect(body[i].price).to.be.at.most(body[i - 1].price);",
+									"    }",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/products?sort=price&order=desc",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products"
+							],
+							"query": [
+								{
+									"key": "sort",
+									"value": "price"
+								},
+								{
+									"key": "order",
+									"value": "desc"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get one product",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"It is Product 1\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.sku).to.eql(\"Product 1\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/products/Product%201",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products",
+								"Product%201"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create a product",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"The product is created with an empty stock\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.sku).to.eql(\"POSTMAN-1\");",
+									"    pm.expect(body.price).to.eql(19.99);",
+									"    pm.expect(body.quantity).to.eql(0);",
+									"    pm.expect(body.stock).to.eql([]);",
+									"    pm.expect(body.lowStockThreshold).to.eql(5);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sku\": \"POSTMAN-1\",\n    \"name\": \"Postman product\",\n    \"price\": 19.99,\n    \"category\": \"Category 1\",\n    \"supplier\": \"Supplier 1\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/products",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update a product",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Only the fields that were sent have changed\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.price).to.eql(24.5);",
+									"    pm.expect(body.lowStockThreshold).to.eql(8);",
+									"    pm.expect(body.name).to.eql(\"Postman product\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"price\": 24.5,\n    \"lowStockThreshold\": 8\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/products/POSTMAN-1",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products",
+								"POSTMAN-1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Error 400: missing fields",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"The error message is clear\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.error).to.eql(\"Missing required fields\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sku\": \"POSTMAN-9\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/products",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Error 400: price with 3 decimals",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"The error message is clear\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.error).to.eql(\"price must be a number greater than or equal to 0, with 2 decimals at most\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sku\": \"POSTMAN-9\",\n    \"name\": \"Postman product\",\n    \"price\": 10.999,\n    \"category\": \"Category 1\",\n    \"supplier\": \"Supplier 1\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/products",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Error 400: unknown category",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"The error message is clear\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.error).to.eql(\"Invalid category\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sku\": \"POSTMAN-9\",\n    \"name\": \"Postman product\",\n    \"price\": 10,\n    \"category\": \"Unknown\",\n    \"supplier\": \"Supplier 1\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/products",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Error 400: quantity at creation",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"The error message is clear\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.error).to.eql(\"quantity and stock cannot be set here: create the product, then use POST /products/:sku/movements\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sku\": \"POSTMAN-9\",\n    \"name\": \"Postman product\",\n    \"price\": 10,\n    \"category\": \"Category 1\",\n    \"supplier\": \"Supplier 1\",\n    \"quantity\": 50\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/products",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Error 400: change the quantity without a movement",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"The error message is clear\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.error).to.eql(\"quantity and stock cannot be updated here: use POST /products/:sku/movements\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"quantity\": 50\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/products/POSTMAN-1",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products",
+								"POSTMAN-1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Error 400: change the SKU",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"The error message is clear\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.error).to.eql(\"sku cannot be updated\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sku\": \"POSTMAN-9\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/products/POSTMAN-1",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products",
+								"POSTMAN-1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Error 400: invalid filter",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"The error message is clear\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.error).to.eql(\"minPrice must be a number greater than or equal to 0\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/products?minPrice=abc",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products"
+							],
+							"query": [
+								{
+									"key": "minPrice",
+									"value": "abc"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Error 404: unknown product",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 404\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test(\"The error message is clear\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.error).to.eql(\"Product not found\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/products/UNKNOWN",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products",
+								"UNKNOWN"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Error 409: SKU already used",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 409\", function () {",
+									"    pm.response.to.have.status(409);",
+									"});",
+									"",
+									"pm.test(\"The error message is clear\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.error).to.eql(\"Product with this SKU already exists\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sku\": \"postman-1\",\n    \"name\": \"Same SKU in lower case\",\n    \"price\": 10,\n    \"category\": \"Category 1\",\n    \"supplier\": \"Supplier 1\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/products",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete a product",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"The deleted product is returned\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.message).to.eql(\"Product deleted successfully\");",
+									"    pm.expect(body.product.sku).to.eql(\"POSTMAN-1\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/products/POSTMAN-1",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products",
+								"POSTMAN-1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Error 404: the product is deleted",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 404\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test(\"The error message is clear\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.error).to.eql(\"Product not found\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/products/POSTMAN-1",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products",
+								"POSTMAN-1"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "2. Stock movements",
+			"description": "Creates the product POSTMAN-2, moves its units between the warehouses, and deletes it at the end.",
+			"item": [
+				{
+					"name": "Create the product to move",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sku\": \"POSTMAN-2\",\n    \"name\": \"Postman moved product\",\n    \"price\": 5,\n    \"category\": \"Category 1\",\n    \"supplier\": \"Supplier 1\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/products",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "History of a new product",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"The history is empty\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body).to.eql([]);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/products/POSTMAN-2/movements",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products",
+								"POSTMAN-2",
+								"movements"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "In: 10 units arrive in Warehouse 1",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"The stock is now 10\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.type).to.eql(\"in\");",
+									"    pm.expect(body.to).to.eql(\"Warehouse 1\");",
+									"    pm.expect(body.stockAfter).to.eql(10);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"type\": \"in\",\n    \"quantity\": 10,\n    \"reason\": \"Delivery\",\n    \"to\": \"Warehouse 1\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/products/POSTMAN-2/movements",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products",
+								"POSTMAN-2",
+								"movements"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Transfer: 4 units from Warehouse 1 to Warehouse 2",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"The total does not change\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.from).to.eql(\"Warehouse 1\");",
+									"    pm.expect(body.to).to.eql(\"Warehouse 2\");",
+									"    pm.expect(body.stockAfter).to.eql(10);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"type\": \"transfer\",\n    \"quantity\": 4,\n    \"reason\": \"Restock\",\n    \"from\": \"Warehouse 1\",\n    \"to\": \"Warehouse 2\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/products/POSTMAN-2/movements",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products",
+								"POSTMAN-2",
+								"movements"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Out: 3 units leave Warehouse 2",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"The stock is now 7\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.stockAfter).to.eql(7);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"type\": \"out\",\n    \"quantity\": 3,\n    \"reason\": \"Sale\",\n    \"from\": \"Warehouse 2\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/products/POSTMAN-2/movements",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products",
+								"POSTMAN-2",
+								"movements"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Where are the units now?",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"6 units in Warehouse 1 and 1 unit in Warehouse 2\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.quantity).to.eql(7);",
+									"    pm.expect(body.stock).to.eql([",
+									"        { warehouse: \"Warehouse 1\", quantity: 6 },",
+									"        { warehouse: \"Warehouse 2\", quantity: 1 }",
+									"    ]);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/products/POSTMAN-2",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products",
+								"POSTMAN-2"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "History of the product",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"The 3 movements, from the oldest to the newest\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.map(m => m.type)).to.eql([\"in\", \"transfer\", \"out\"]);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/products/POSTMAN-2/movements",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products",
+								"POSTMAN-2",
+								"movements"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Error 400: movement without its warehouse",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"The error message is clear\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.error).to.eql(\"type 'in' needs a warehouse in 'to' only\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"type\": \"in\",\n    \"quantity\": 5,\n    \"reason\": \"Delivery\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/products/POSTMAN-2/movements",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products",
+								"POSTMAN-2",
+								"movements"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Error 400: transfer to the same warehouse",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"The error message is clear\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.error).to.eql(\"from and to must be two different warehouses\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"type\": \"transfer\",\n    \"quantity\": 1,\n    \"reason\": \"Restock\",\n    \"from\": \"Warehouse 1\",\n    \"to\": \"Warehouse 1\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/products/POSTMAN-2/movements",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products",
+								"POSTMAN-2",
+								"movements"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Error 400: unknown warehouse",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"The error message is clear\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.error).to.eql(\"Invalid warehouse in to\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"type\": \"in\",\n    \"quantity\": 5,\n    \"reason\": \"Delivery\",\n    \"to\": \"Unknown\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/products/POSTMAN-2/movements",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products",
+								"POSTMAN-2",
+								"movements"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Error 400: unknown type",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"The error message is clear\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.error).to.eql(\"type must be 'in', 'out' or 'transfer'\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"type\": \"gift\",\n    \"quantity\": 1,\n    \"reason\": \"Gift\",\n    \"from\": \"Warehouse 1\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/products/POSTMAN-2/movements",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products",
+								"POSTMAN-2",
+								"movements"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Error 400: quantity 0",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"The error message is clear\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.error).to.eql(\"quantity must be a whole number greater than 0\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"type\": \"in\",\n    \"quantity\": 0,\n    \"reason\": \"Delivery\",\n    \"to\": \"Warehouse 1\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/products/POSTMAN-2/movements",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products",
+								"POSTMAN-2",
+								"movements"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Error 404: unknown product",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 404\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test(\"The error message is clear\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.error).to.eql(\"Product not found\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"type\": \"in\",\n    \"quantity\": 5,\n    \"reason\": \"Delivery\",\n    \"to\": \"Warehouse 1\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/products/UNKNOWN/movements",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products",
+								"UNKNOWN",
+								"movements"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Error 409: not enough stock in the warehouse",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 409\", function () {",
+									"    pm.response.to.have.status(409);",
+									"});",
+									"",
+									"pm.test(\"The error message is clear\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.error).to.eql(\"Not enough stock in Warehouse 2: only 1 available\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"type\": \"out\",\n    \"quantity\": 5,\n    \"reason\": \"Sale\",\n    \"from\": \"Warehouse 2\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/products/POSTMAN-2/movements",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products",
+								"POSTMAN-2",
+								"movements"
+							]
+						},
+						"description": "There are 7 units in total, but only 1 in Warehouse 2."
+					},
+					"response": []
+				},
+				{
+					"name": "The refused movements changed nothing",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"There are still 7 units\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.quantity).to.eql(7);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/products/POSTMAN-2",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products",
+								"POSTMAN-2"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete the product",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/products/POSTMAN-2",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"products",
+								"POSTMAN-2"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "3. Warehouses",
+			"description": "Creates \"Postman warehouse\", renames it, and deletes it at the end.",
+			"item": [
+				{
+					"name": "List all warehouses",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Warehouse 1 is in the list\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.map(x => x.name)).to.include(\"Warehouse 1\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/warehouses",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"warehouses"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Search warehouses by name",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Warehouse 2 is found\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.map(x => x.name)).to.eql([\"Warehouse 2\"]);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/warehouses?name=WAREHOUSE%202",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"warehouses"
+							],
+							"query": [
+								{
+									"key": "name",
+									"value": "WAREHOUSE%202"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get one warehouse",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"It is Warehouse 1\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.name).to.eql(\"Warehouse 1\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/warehouses/Warehouse%201",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"warehouses",
+								"Warehouse%201"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Products of a warehouse",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Each product has units in this warehouse\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body).to.be.an(\"array\").that.is.not.empty;",
+									"    body.forEach(p => pm.expect(p.quantity).to.be.above(0));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/warehouses/Warehouse%202/products",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"warehouses",
+								"Warehouse%202",
+								"products"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Movements of a warehouse",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Each movement starts or ends in this warehouse\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body).to.be.an(\"array\");",
+									"    body.forEach(m => pm.expect([m.from, m.to]).to.include(\"Warehouse 1\"));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/warehouses/Warehouse%201/movements",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"warehouses",
+								"Warehouse%201",
+								"movements"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create a warehouse",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"The warehouse is created\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.message).to.eql(\"Warehouse created successfully\");",
+									"    pm.expect(body.warehouse.name).to.eql(\"Postman warehouse\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Postman warehouse\",\n    \"address\": \"1 Postman Street\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/warehouses",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"warehouses"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update a warehouse",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"The new values are saved\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.warehouse.name).to.eql(\"Renamed warehouse\");",
+									"    pm.expect(body.warehouse.address).to.eql(\"2 Postman Street\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"newName\": \"Renamed warehouse\",\n    \"address\": \"2 Postman Street\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/warehouses/Postman%20warehouse",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"warehouses",
+								"Postman%20warehouse"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Error 400: missing address",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"The error message is clear\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.error).to.eql(\"Missing required fields: address\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Postman other\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/warehouses",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"warehouses"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Error 400: nothing to update",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/warehouses/Renamed%20warehouse",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"warehouses",
+								"Renamed%20warehouse"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Error 404: unknown warehouse",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 404\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test(\"The error message is clear\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.error).to.eql(\"Warehouse not found\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/warehouses/Unknown",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"warehouses",
+								"Unknown"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Error 409: name already used",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 409\", function () {",
+									"    pm.response.to.have.status(409);",
+									"});",
+									"",
+									"pm.test(\"The error message is clear\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.error).to.eql(\"Warehouse with this name already exists\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"RENAMED WAREHOUSE\",\n    \"address\": \"1 Postman Street\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/warehouses",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"warehouses"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Error 409: warehouse still used",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 409\", function () {",
+									"    pm.response.to.have.status(409);",
+									"});",
+									"",
+									"pm.test(\"The error message is clear\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.error).to.eql(\"Cannot delete warehouse with products in stock\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/warehouses/Warehouse%201",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"warehouses",
+								"Warehouse%201"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete a warehouse",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"The warehouse is deleted\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.message).to.eql(\"Warehouse deleted successfully\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/warehouses/Renamed%20warehouse",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"warehouses",
+								"Renamed%20warehouse"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "4. Categories",
+			"description": "Creates \"Postman category\", renames it, and deletes it at the end.",
+			"item": [
+				{
+					"name": "List all categories",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Category 1 is in the list\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.map(x => x.name)).to.include(\"Category 1\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/categories",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"categories"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Search categories by name",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Category 2 is found\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.map(x => x.name)).to.eql([\"Category 2\"]);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/categories?name=CATEGORY%202",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"categories"
+							],
+							"query": [
+								{
+									"key": "name",
+									"value": "CATEGORY%202"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get one category",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"It is Category 1\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.name).to.eql(\"Category 1\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/categories/Category%201",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"categories",
+								"Category%201"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Products of a category",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Every product is in Category 2\", function () {",
+									"    const body = pm.response.json();",
+									"    body.forEach(p => pm.expect(p.category).to.eql(\"Category 2\"));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/categories/Category%202/products",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"categories",
+								"Category%202",
+								"products"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create a category",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"The category is created\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.message).to.eql(\"Category created successfully\");",
+									"    pm.expect(body.category.name).to.eql(\"Postman category\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Postman category\",\n    \"description\": \"Created in Postman\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/categories",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"categories"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update a category",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"The new values are saved\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.category.name).to.eql(\"Renamed category\");",
+									"    pm.expect(body.category.description).to.eql(\"Changed in Postman\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"newName\": \"Renamed category\",\n    \"description\": \"Changed in Postman\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/categories/Postman%20category",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"categories",
+								"Postman%20category"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Error 400: missing description",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"The error message is clear\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.error).to.eql(\"Missing required fields: description\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Postman other\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/categories",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"categories"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Error 400: nothing to update",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/categories/Renamed%20category",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"categories",
+								"Renamed%20category"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Error 404: unknown category",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 404\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test(\"The error message is clear\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.error).to.eql(\"Category not found\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/categories/Unknown",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"categories",
+								"Unknown"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Error 409: name already used",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 409\", function () {",
+									"    pm.response.to.have.status(409);",
+									"});",
+									"",
+									"pm.test(\"The error message is clear\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.error).to.eql(\"Category with this name already exists\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"RENAMED CATEGORY\",\n    \"description\": \"Created in Postman\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/categories",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"categories"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Error 409: category still used",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 409\", function () {",
+									"    pm.response.to.have.status(409);",
+									"});",
+									"",
+									"pm.test(\"The error message is clear\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.error).to.eql(\"Cannot delete category with associated products\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/categories/Category%201",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"categories",
+								"Category%201"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete a category",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"The category is deleted\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.message).to.eql(\"Category deleted successfully\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/categories/Renamed%20category",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"categories",
+								"Renamed%20category"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "5. Suppliers",
+			"description": "Creates \"Postman supplier\", renames it, and deletes it at the end.",
+			"item": [
+				{
+					"name": "List all suppliers",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Supplier 1 is in the list\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.map(x => x.name)).to.include(\"Supplier 1\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/suppliers",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"suppliers"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Search suppliers by name",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Supplier 2 is found\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.map(x => x.name)).to.eql([\"Supplier 2\"]);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/suppliers?name=SUPPLIER%202",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"suppliers"
+							],
+							"query": [
+								{
+									"key": "name",
+									"value": "SUPPLIER%202"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get one supplier",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"It is Supplier 1\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.name).to.eql(\"Supplier 1\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/suppliers/Supplier%201",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"suppliers",
+								"Supplier%201"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Products of a supplier",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Every product comes from Supplier 3\", function () {",
+									"    const body = pm.response.json();",
+									"    body.forEach(p => pm.expect(p.supplier).to.eql(\"Supplier 3\"));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/suppliers/Supplier%203/products",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"suppliers",
+								"Supplier%203",
+								"products"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create a supplier",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"The supplier is created\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.message).to.eql(\"Supplier created successfully\");",
+									"    pm.expect(body.supplier.name).to.eql(\"Postman supplier\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Postman supplier\",\n    \"contact\": \"Jane Doe\",\n    \"email\": \"jane@example.com\",\n    \"phone\": \"+1 555 0199\",\n    \"address\": \"1 Postman Street\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/suppliers",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"suppliers"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update a supplier",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"The new values are saved\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.supplier.name).to.eql(\"Renamed supplier\");",
+									"    pm.expect(body.supplier.phone).to.eql(\"+1 555 0200\");",
+									"    pm.expect(body.supplier.contact).to.eql(\"Jane Doe\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"newName\": \"Renamed supplier\",\n    \"phone\": \"+1 555 0200\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/suppliers/Postman%20supplier",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"suppliers",
+								"Postman%20supplier"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Error 400: missing fields",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"The error message is clear\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.error).to.eql(\"Missing required fields: contact, email, phone, address\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Postman other\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/suppliers",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"suppliers"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Error 400: invalid email",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"The error message is clear\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.error).to.eql(\"email must be a valid email address\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Postman other\",\n    \"contact\": \"Jane Doe\",\n    \"email\": \"not an email\",\n    \"phone\": \"1\",\n    \"address\": \"x\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/suppliers",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"suppliers"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Error 400: nothing to update",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/suppliers/Renamed%20supplier",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"suppliers",
+								"Renamed%20supplier"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Error 404: unknown supplier",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 404\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test(\"The error message is clear\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.error).to.eql(\"Supplier not found\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/suppliers/Unknown",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"suppliers",
+								"Unknown"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Error 409: name already used",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 409\", function () {",
+									"    pm.response.to.have.status(409);",
+									"});",
+									"",
+									"pm.test(\"The error message is clear\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.error).to.eql(\"Supplier with this name already exists\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"RENAMED SUPPLIER\",\n    \"contact\": \"Jane Doe\",\n    \"email\": \"jane@example.com\",\n    \"phone\": \"+1 555 0199\",\n    \"address\": \"1 Postman Street\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/suppliers",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"suppliers"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Error 409: supplier still used",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 409\", function () {",
+									"    pm.response.to.have.status(409);",
+									"});",
+									"",
+									"pm.test(\"The error message is clear\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.error).to.eql(\"Cannot delete supplier with associated products\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/suppliers/Supplier%201",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"suppliers",
+								"Supplier%201"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete a supplier",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"The supplier is deleted\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.message).to.eql(\"Supplier deleted successfully\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/suppliers/Renamed%20supplier",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"suppliers",
+								"Renamed%20supplier"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "6. Statistics",
+			"description": "The summary of the inventory.",
+			"item": [
+				{
+					"name": "Get the statistics",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"All the fields are there\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body).to.have.all.keys(\"totalProducts\", \"totalUnits\", \"stockValue\", \"lowStock\", \"byCategory\", \"byWarehouse\");",
+									"});",
+									"",
+									"pm.test(\"The total is the sum of the categories and of the warehouses\", function () {",
+									"    const body = pm.response.json();",
+									"    const unitsByCategory = body.byCategory.reduce((sum, c) => sum + c.units, 0);",
+									"    const unitsByWarehouse = body.byWarehouse.reduce((sum, w) => sum + w.units, 0);",
+									"    pm.expect(unitsByCategory).to.eql(body.totalUnits);",
+									"    pm.expect(unitsByWarehouse).to.eql(body.totalUnits);",
+									"});",
+									"",
+									"pm.test(\"The value has 2 decimals at most\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(Number(body.stockValue.toFixed(2))).to.eql(body.stockValue);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/stats",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"stats"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "7. Other errors",
+			"description": "Errors that do not depend on a route.",
+			"item": [
+				{
+					"name": "Error 404: unknown route",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 404\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test(\"The error message is clear\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.error).to.eql(\"Route not found\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/unknown",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"unknown"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Error 400: malformed JSON",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"The error message talks about JSON\", function () {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.error).to.include(\"JSON\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{ \"name\": ",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/categories",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"categories"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// This test runs after every request of the collection",
+					"pm.test(\"The answer is JSON\", function () {",
+					"    pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/json\");",
+					"});"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:3000"
+		}
+	]
+}
