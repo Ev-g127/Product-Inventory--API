@@ -43,12 +43,13 @@ const suppliers = [
     { id: 4, name: 'Supplier 4', contact: 'Contact 4', email: 'supplier4@example.com', phone: '+1 555 0104', address: '4 Main Street' }
 ];
 
-// Define in-memory data storage for products (quantity is the number of units in stock)
+// Define in-memory data storage for products.
+// quantity is the number of units in stock. The stock is low when quantity is lower than or equal to lowStockThreshold.
 const products = [
-    { id: 1, sku: 'Product 1', name: 'Product One', price: 10.99, category: 'Category 1', supplier: 'Supplier 1', quantity: 20 },
-    { id: 2, sku: 'Product 2', name: 'Product Two', price: 15.99, category: 'Category 2', supplier: 'Supplier 2', quantity: 5 },
-    { id: 3, sku: 'Product 3', name: 'Product Three', price: 20.99, category: 'Category 3', supplier: 'Supplier 3', quantity: 0 },
-    { id: 4, sku: 'Product 4', name: 'Product Four', price: 25.99, category: 'Category 4', supplier: 'Supplier 4', quantity: 50 }
+    { id: 1, sku: 'Product 1', name: 'Product One', price: 10.99, category: 'Category 1', supplier: 'Supplier 1', quantity: 20, lowStockThreshold: 5 },
+    { id: 2, sku: 'Product 2', name: 'Product Two', price: 15.99, category: 'Category 2', supplier: 'Supplier 2', quantity: 5, lowStockThreshold: 5 },
+    { id: 3, sku: 'Product 3', name: 'Product Three', price: 20.99, category: 'Category 3', supplier: 'Supplier 3', quantity: 0, lowStockThreshold: 5 },
+    { id: 4, sku: 'Product 4', name: 'Product Four', price: 25.99, category: 'Category 4', supplier: 'Supplier 4', quantity: 50, lowStockThreshold: 5 }
 ];
 
 // Define in-memory data storage for stock movements (empty at startup, filled by POST /products/:sku/movements).
@@ -76,8 +77,9 @@ const trimText = value => typeof value === 'string' ? value.trim() : value;
 // Returns true if the value is a string that is not empty (or only spaces)
 const isNonEmptyString = value => typeof value === 'string' && value.trim() !== '';
 
-// Returns true if the value is a real number greater than or equal to 0
-const isValidPrice = value => typeof value === 'number' && Number.isFinite(value) && value >= 0;
+// Returns true if the value is a real number greater than or equal to 0, with 2 decimals at most.
+// toFixed(2) rounds to 2 decimals: if the number is not the same after that (10.999 => 11), it had more than 2 decimals.
+const isValidPrice = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 && Number(value.toFixed(2)) === value;
 
 // Returns true if the value is a whole number greater than or equal to 0.
 // isSafeInteger also rejects texts ("5"), decimals (2.5) and numbers too big to be counted exactly.
@@ -137,8 +139,8 @@ app.get('/products/:sku', (req, res) => {
 // Define a route to create a new product
 app.post('/products', (req, res) => {
     // In Express 5, req.body is undefined when no JSON body was sent
-    // quantity is optional: a product created without it starts with an empty stock
-    const { price, quantity = 0 } = req.body ?? {};
+    // quantity and lowStockThreshold are optional: by default, the stock is empty and the threshold is 5 units
+    const { price, quantity = 0, lowStockThreshold = 5 } = req.body ?? {};
     const sku = trimText(req.body?.sku);
     const name = trimText(req.body?.name);
     const category = trimText(req.body?.category);
@@ -159,15 +161,19 @@ app.post('/products', (req, res) => {
     }
 
     if (!isValidPrice(price)) {
-        return res.status(400).json({ error: 'price must be a number greater than or equal to 0' });
+        return res.status(400).json({ error: 'price must be a number greater than or equal to 0, with 2 decimals at most' });
     }
 
     if (!isValidQuantity(quantity)) {
         return res.status(400).json({ error: 'quantity must be a whole number greater than or equal to 0' });
     }
 
-    // Check if a product with the same SKU already exists
-    const existingProduct = products.find(p => p.sku === sku);
+    if (!isValidQuantity(lowStockThreshold)) {
+        return res.status(400).json({ error: 'lowStockThreshold must be a whole number greater than or equal to 0' });
+    }
+
+    // Check if a product with the same SKU already exists (case-insensitive)
+    const existingProduct = products.find(p => isSameName(p.sku, sku));
     if (existingProduct) {
         return res.status(409).json({ error: 'Product with this SKU already exists' });
     }
@@ -183,7 +189,7 @@ app.post('/products', (req, res) => {
     }
 
     // Create a new product
-    const newProduct = { id: nextProductId++, sku, name, price, category, supplier, quantity };
+    const newProduct = { id: nextProductId++, sku, name, price, category, supplier, quantity, lowStockThreshold };
     products.push(newProduct);
 
     // Return the created product
@@ -193,7 +199,7 @@ app.post('/products', (req, res) => {
 // Define a route to update a specific product by SKU
 app.patch('/products/:sku', (req, res) => {
     const productSku = req.params.sku;
-    const { price } = req.body ?? {};
+    const { price, lowStockThreshold } = req.body ?? {};
     const name = trimText(req.body?.name);
     const category = trimText(req.body?.category);
     const supplier = trimText(req.body?.supplier);
@@ -206,14 +212,19 @@ app.patch('/products/:sku', (req, res) => {
         return res.status(404).json({ error: 'Product not found' });
     }
 
+    // The SKU identifies the product in the URLs, so it never changes
+    if (req.body?.sku !== undefined) {
+        return res.status(400).json({ error: 'sku cannot be updated' });
+    }
+
     // The quantity only changes through stock movements, so that every change is kept in the history
     if (req.body?.quantity !== undefined) {
         return res.status(400).json({ error: 'quantity cannot be updated here: use POST /products/:sku/movements' });
     }
 
     // At least one field to update must be sent
-    if ([name, price, category, supplier].every(field => field === undefined)) {
-        return res.status(400).json({ error: 'Nothing to update: send name, price, category and/or supplier' });
+    if ([name, price, category, supplier, lowStockThreshold].every(field => field === undefined)) {
+        return res.status(400).json({ error: 'Nothing to update: send name, price, category, supplier and/or lowStockThreshold' });
     }
 
     // Validate the types of the fields that were sent
@@ -222,7 +233,11 @@ app.patch('/products/:sku', (req, res) => {
     }
 
     if (price !== undefined && !isValidPrice(price)) {
-        return res.status(400).json({ error: 'price must be a number greater than or equal to 0' });
+        return res.status(400).json({ error: 'price must be a number greater than or equal to 0, with 2 decimals at most' });
+    }
+
+    if (lowStockThreshold !== undefined && !isValidQuantity(lowStockThreshold)) {
+        return res.status(400).json({ error: 'lowStockThreshold must be a whole number greater than or equal to 0' });
     }
 
     // Check if the category is valid (part of the categories array)
@@ -240,6 +255,7 @@ app.patch('/products/:sku', (req, res) => {
     if (price !== undefined) product.price = price;
     if (category !== undefined) product.category = category;
     if (supplier !== undefined) product.supplier = supplier;
+    if (lowStockThreshold !== undefined) product.lowStockThreshold = lowStockThreshold;
 
     // Return the updated product
     res.status(200).json(product);
@@ -648,7 +664,7 @@ app.use((req, res, next) => {
     res.status(404).json({ error: 'Route not found' });
 });
 
-// Error handling middleware: catches errors thrown in the routes (and invalid JSON bodies)
+// Error handling middleware: catches errors thrown in the routes (and invalid JSON bodies or URLs)
 // and always answers in JSON, without sending the stack trace to the client
 app.use((err, req, res, next) => {
     if (res.headersSent) {
@@ -662,8 +678,8 @@ app.use((err, req, res, next) => {
         console.error(err);
     }
 
-    // err.expose is true for client errors such as malformed JSON: their message is safe to send
-    res.status(status).json({ error: err.expose ? err.message : 'Internal server error' });
+    // A status below 500 is a client error, such as malformed JSON or a badly encoded URL: its message is safe to send
+    res.status(status).json({ error: status < 500 ? err.message : 'Internal server error' });
 });
 
 /**
