@@ -112,6 +112,7 @@ At startup, the API contains 4 sample categories (`Category 1` to `Category 4`),
 
 - A product's `category` and `supplier` must already exist.
 - Category and supplier names must be unique, ignoring upper/lower case (`Food` and `food` are the same name).
+- Spaces at the start and end of SKUs and of product, category and supplier names are removed (`" Food "` is saved as `Food`).
 - Renaming a category or a supplier also updates the products that use it.
 - A category or a supplier cannot be deleted while products still use it.
 
