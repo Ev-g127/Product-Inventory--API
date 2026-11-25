@@ -62,6 +62,10 @@ let nextSupplierId = suppliers.reduce((maxId, s) => Math.max(maxId, s.id), 0) + 
  * Validation helpers section: small functions used by the routes to check the types of the request body fields.
  */
 
+// Removes the spaces at the start and at the end of a text (" Food " => "Food").
+// Other values (numbers, undefined...) are returned unchanged, so that the checks below can reject them.
+const trimText = value => typeof value === 'string' ? value.trim() : value;
+
 // Returns true if the value is a string that is not empty (or only spaces)
 const isNonEmptyString = value => typeof value === 'string' && value.trim() !== '';
 
@@ -122,7 +126,11 @@ app.get('/products/:sku', (req, res) => {
 // Define a route to create a new product
 app.post('/products', (req, res) => {
     // In Express 5, req.body is undefined when no JSON body was sent
-    const { sku, name, price, category, supplier } = req.body ?? {};
+    const { price } = req.body ?? {};
+    const sku = trimText(req.body?.sku);
+    const name = trimText(req.body?.name);
+    const category = trimText(req.body?.category);
+    const supplier = trimText(req.body?.supplier);
 
     // Validate the request body to ensure all required fields are present
     if ([sku, name, price, category, supplier].some(field => field === undefined)) {
@@ -169,7 +177,10 @@ app.post('/products', (req, res) => {
 // Define a route to update a specific product by SKU
 app.patch('/products/:sku', (req, res) => {
     const productSku = req.params.sku;
-    const { name, price, category, supplier } = req.body ?? {};
+    const { price } = req.body ?? {};
+    const name = trimText(req.body?.name);
+    const category = trimText(req.body?.category);
+    const supplier = trimText(req.body?.supplier);
 
     // Find the product by SKU
     const product = products.find(p => p.sku === productSku);
@@ -177,6 +188,11 @@ app.patch('/products/:sku', (req, res) => {
     // If the product is not found, return a 404 error response
     if (!product) {
         return res.status(404).json({ error: 'Product not found' });
+    }
+
+    // At least one field to update must be sent
+    if ([name, price, category, supplier].every(field => field === undefined)) {
+        return res.status(400).json({ error: 'Nothing to update: send name, price, category and/or supplier' });
     }
 
     // Validate the types of the fields that were sent
@@ -240,7 +256,8 @@ app.get('/categories', (req, res) => {
 
 // Define a route to create a new category
 app.post('/categories', (req, res) => {
-    const { name, description } = req.body ?? {};
+    const { description } = req.body ?? {};
+    const name = trimText(req.body?.name);
 
     // Validate the request body to ensure all required fields are present
     const missingFields = findMissingFields({ name, description });
@@ -298,7 +315,8 @@ app.get('/categories/:name/products', (req, res) => {
 // Define a route to update a specific category by its name (rename it and/or change its description)
 app.patch('/categories/:name', (req, res) => {
     const categoryName = req.params.name;
-    const { newName, description } = req.body ?? {};
+    const { description } = req.body ?? {};
+    const newName = trimText(req.body?.newName);
 
     // Find the category by name
     const category = categories.find(c => c.name === categoryName);
@@ -381,7 +399,8 @@ app.get('/suppliers', (req, res) => {
 
 // Define a route to create a new supplier
 app.post('/suppliers', (req, res) => {
-    const { name, contact, email, phone, address } = req.body ?? {};
+    const { contact, email, phone, address } = req.body ?? {};
+    const name = trimText(req.body?.name);
 
     // Validate the request body to ensure all required fields are present
     const missingFields = findMissingFields({ name, contact, email, phone, address });
@@ -446,7 +465,8 @@ app.get('/suppliers/:name/products', (req, res) => {
 // Define a route to update a specific supplier by its name (rename it and/or change its contact details)
 app.patch('/suppliers/:name', (req, res) => {
     const supplierName = req.params.name;
-    const { newName, contact, email, phone, address } = req.body ?? {};
+    const { contact, email, phone, address } = req.body ?? {};
+    const newName = trimText(req.body?.newName);
 
     // Find the supplier by name
     const supplier = suppliers.find(s => s.name === supplierName);
