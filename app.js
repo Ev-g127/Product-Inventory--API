@@ -88,7 +88,7 @@ let nextWarehouseId = warehouses.reduce((maxId, w) => Math.max(maxId, w.id), 0) 
 let nextMovementId = 1;
 
 /**
- * Validation helpers section: small functions used by the routes to check the types of the request body fields.
+ * Validation helpers section: small functions used by the routes to check the fields of the request body and of the query string.
  */
 
 // Removes the spaces at the start and at the end of a text (" Food " => "Food").
@@ -106,11 +106,18 @@ const isValidPrice = value => typeof value === 'number' && Number.isFinite(value
 // isSafeInteger also rejects texts ("5"), decimals (2.5) and numbers too big to be counted exactly.
 const isValidQuantity = value => Number.isSafeInteger(value) && value >= 0;
 
+// Returns true if the value is a text that contains a number greater than or equal to 0, such as "10.5".
+// The values of a query string are always texts, even when they look like numbers.
+const isNumberText = value => isNonEmptyString(value) && Number.isFinite(Number(value)) && Number(value) >= 0;
+
 // Returns true if the value looks like an email address (simple check: text@text.text, without spaces)
 const isValidEmail = value => isNonEmptyString(value) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
 // Returns true if the two names are the same, ignoring upper and lower case ("Food" and "food")
 const isSameName = (nameA, nameB) => nameA.toLowerCase() === nameB.toLowerCase();
+
+// Returns true if the text contains the search text, ignoring upper and lower case ("Phone case" contains "PHONE")
+const containsText = (text, searchText) => text.toLowerCase().includes(searchText.toLowerCase());
 
 // Returns the names of the fields whose value is missing, e.g. findMissingFields({ name, email }) => ['email']
 const findMissingFields = fields => Object.keys(fields).filter(key => fields[key] === undefined);
@@ -120,8 +127,11 @@ const findMissingFields = fields => Object.keys(fields).filter(key => fields[key
 const findInvalidTextField = fields => Object.keys(fields).find(key => fields[key] !== undefined && !isNonEmptyString(fields[key]));
 
 /**
- * Stock helpers section: small functions used by the routes to read and change the units of a product in a warehouse.
+ * Stock helpers section: small functions used by the routes to read and change the units of a product.
  */
+
+// Returns true if the stock of a product is low
+const isLowStock = product => product.quantity <= product.lowStockThreshold;
 
 // Returns the number of units of a product in a warehouse (0 if there are none)
 const getWarehouseQuantity = (product, warehouseName) => {
@@ -148,23 +158,60 @@ const changeWarehouseQuantity = (product, warehouseName, units) => {
  * Products section: This section contains the routes to create, read, update, delete and search products.
  */
 
-// Define a route to get all products, or only the products whose name contains
-// the text given in the query string, e.g. GET /products?name=phone (case-insensitive)
+// Define a route to get all products. The query string can filter and sort them, and several filters can be used together,
+// e.g. GET /products?category=Food&maxPrice=20&lowStock=true&sort=price&order=desc
 app.get('/products', (req, res) => {
-    const { name } = req.query;
+    const { name, minPrice, maxPrice, lowStock, sort, order } = req.query;
+    const category = trimText(req.query.category);
+    const supplier = trimText(req.query.supplier);
 
-    // No name filter: return all the products
-    if (name === undefined) {
-        return res.status(200).json(products);
+    // Each text filter must be one non-empty text (?name=a&name=b would give an array)
+    const invalidField = findInvalidTextField({ name, category, supplier });
+    if (invalidField) {
+        return res.status(400).json({ error: `${invalidField} must be a non-empty string` });
     }
 
-    // The name filter must be one non-empty text (?name=a&name=b would give an array)
-    if (!isNonEmptyString(name)) {
-        return res.status(400).json({ error: 'name must be a non-empty string' });
+    // Validate the other filters that were sent
+    if (minPrice !== undefined && !isNumberText(minPrice)) {
+        return res.status(400).json({ error: 'minPrice must be a number greater than or equal to 0' });
     }
 
-    const searchText = name.toLowerCase();
-    const matchingProducts = products.filter(p => p.name.toLowerCase().includes(searchText));
+    if (maxPrice !== undefined && !isNumberText(maxPrice)) {
+        return res.status(400).json({ error: 'maxPrice must be a number greater than or equal to 0' });
+    }
+
+    if (lowStock !== undefined && lowStock !== 'true' && lowStock !== 'false') {
+        return res.status(400).json({ error: "lowStock must be 'true' or 'false'" });
+    }
+
+    // Validate the sort
+    if (sort !== undefined && sort !== 'name' && sort !== 'price' && sort !== 'quantity') {
+        return res.status(400).json({ error: "sort must be 'name', 'price' or 'quantity'" });
+    }
+
+    if (order !== undefined && order !== 'asc' && order !== 'desc') {
+        return res.status(400).json({ error: "order must be 'asc' or 'desc'" });
+    }
+
+    if (order !== undefined && sort === undefined) {
+        return res.status(400).json({ error: 'order can only be used with sort' });
+    }
+
+    // Start with a copy of all the products, then keep only those that match each filter that was sent
+    let matchingProducts = [...products];
+    if (name !== undefined) matchingProducts = matchingProducts.filter(p => containsText(p.name, name));
+    if (category !== undefined) matchingProducts = matchingProducts.filter(p => isSameName(p.category, category));
+    if (supplier !== undefined) matchingProducts = matchingProducts.filter(p => isSameName(p.supplier, supplier));
+    if (minPrice !== undefined) matchingProducts = matchingProducts.filter(p => p.price >= Number(minPrice));
+    if (maxPrice !== undefined) matchingProducts = matchingProducts.filter(p => p.price <= Number(maxPrice));
+    if (lowStock !== undefined) matchingProducts = matchingProducts.filter(p => isLowStock(p) === (lowStock === 'true'));
+
+    // Sort the copy: the order of the products array does not change
+    if (sort === 'name') matchingProducts.sort((a, b) => a.name.localeCompare(b.name));
+    if (sort === 'price') matchingProducts.sort((a, b) => a.price - b.price);
+    if (sort === 'quantity') matchingProducts.sort((a, b) => a.quantity - b.quantity);
+    if (order === 'desc') matchingProducts.reverse();
+
     res.status(200).json(matchingProducts);
 });
 
@@ -444,9 +491,23 @@ app.post('/products/:sku/movements', (req, res) => {
  * and to list the products and the stock movements of a warehouse.
  */
 
-// Define a route to get all warehouses
+// Define a route to get all warehouses, or only the warehouses whose name contains
+// the text given in the query string, e.g. GET /warehouses?name=north (case-insensitive)
 app.get('/warehouses', (req, res) => {
-    res.status(200).json(warehouses);
+    const { name } = req.query;
+
+    // No name filter: return all the warehouses
+    if (name === undefined) {
+        return res.status(200).json(warehouses);
+    }
+
+    // The name filter must be one non-empty text (?name=a&name=b would give an array)
+    if (!isNonEmptyString(name)) {
+        return res.status(400).json({ error: 'name must be a non-empty string' });
+    }
+
+    const matchingWarehouses = warehouses.filter(w => containsText(w.name, name));
+    res.status(200).json(matchingWarehouses);
 });
 
 // Define a route to create a new warehouse
@@ -612,9 +673,23 @@ app.delete('/warehouses/:name', (req, res) => {
  * and to list the products of a category.
  */
 
-// Define a route to get all categories
+// Define a route to get all categories, or only the categories whose name contains
+// the text given in the query string, e.g. GET /categories?name=food (case-insensitive)
 app.get('/categories', (req, res) => {
-    res.status(200).json(categories);
+    const { name } = req.query;
+
+    // No name filter: return all the categories
+    if (name === undefined) {
+        return res.status(200).json(categories);
+    }
+
+    // The name filter must be one non-empty text (?name=a&name=b would give an array)
+    if (!isNonEmptyString(name)) {
+        return res.status(400).json({ error: 'name must be a non-empty string' });
+    }
+
+    const matchingCategories = categories.filter(c => containsText(c.name, name));
+    res.status(200).json(matchingCategories);
 });
 
 // Define a route to create a new category
@@ -755,9 +830,23 @@ app.delete('/categories/:name', (req, res) => {
  * and to list the products of a supplier.
  */
 
-// Define a route to get all suppliers
+// Define a route to get all suppliers, or only the suppliers whose name contains
+// the text given in the query string, e.g. GET /suppliers?name=acme (case-insensitive)
 app.get('/suppliers', (req, res) => {
-    res.status(200).json(suppliers);
+    const { name } = req.query;
+
+    // No name filter: return all the suppliers
+    if (name === undefined) {
+        return res.status(200).json(suppliers);
+    }
+
+    // The name filter must be one non-empty text (?name=a&name=b would give an array)
+    if (!isNonEmptyString(name)) {
+        return res.status(400).json({ error: 'name must be a non-empty string' });
+    }
+
+    const matchingSuppliers = suppliers.filter(s => containsText(s.name, name));
+    res.status(200).json(matchingSuppliers);
 });
 
 // Define a route to create a new supplier
