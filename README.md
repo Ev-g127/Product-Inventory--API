@@ -4,14 +4,17 @@ REST API built with Express.js to manage a product inventory: products, stock mo
 
 Group 3 final project – BeTechified.
 
+The `frontend/` folder contains the web app of the project, built with React.
+
 > **Note:** data is stored in memory. Every restart of the server resets it to the sample data.
 
 ## Tech stack
 
-- [Node.js](https://nodejs.org/) 18 or later
+- [Node.js](https://nodejs.org/) 20.19 or later (18 or later is enough for the API alone)
 - [Express 5](https://expressjs.com/)
 - [dotenv](https://github.com/motdotla/dotenv): loads environment variables from a `.env` file
 - [nodemon](https://nodemon.io/): restarts the server on file changes (development only)
+- Frontend: [React 19](https://react.dev/), [React Router 7](https://reactrouter.com/) and [Vite](https://vite.dev/)
 
 ## Getting started
 
@@ -31,7 +34,7 @@ Start the server:
 
 | Command | What it does |
 |---|---|
-| `npm run dev` | Starts the server with nodemon, which restarts it on every file change |
+| `npm run dev` | Starts the server with nodemon, which restarts it on every file change (except in `frontend/`) |
 | `npm start` | Starts the server with Node (use this in production) |
 
 The API is then available at `http://localhost:3000`.
@@ -41,6 +44,18 @@ Every request is logged in the console with its date, method, URL, status and du
 ```
 2026-11-25T21:20:04.512Z GET /products?lowStock=true 200 3ms
 ```
+
+### Start the web app
+
+Keep the API running, and in a second terminal:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The web app is then available at `http://localhost:5173`. It calls the API through Vite: `/api/stats` is sent to `http://localhost:3000/stats`. See [frontend/README.md](frontend/README.md).
 
 ## Data model
 
@@ -445,6 +460,7 @@ The `postman/` folder contains two collections. In Postman, click **Import** and
 Product-Inventory--API/
 ├── app.js          # Express app: middlewares, in-memory data, routes, error handling, server start
 ├── package.json    # Dependencies and npm scripts
+├── frontend/       # React web app (see frontend/README.md)
 ├── postman/        # Postman collections (tests and demo) and demo scenario
 ├── .postman/       # Postman workspace configuration
 └── .env            # Optional, not committed: PORT
