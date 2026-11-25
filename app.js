@@ -23,8 +23,8 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json()); // Middleware to parse JSON request bodies
 
 /**
- * In-memory data storage section: This section contains the in-memory data storage for products, categories, and suppliers,
- * and the counters used to generate their ids.
+ * In-memory data storage section: This section contains the in-memory data storage for products, categories, suppliers,
+ * and stock movements, and the counters used to generate their ids.
  */
 
 // Define in-memory data storage for categories
@@ -43,13 +43,17 @@ const suppliers = [
     { id: 4, name: 'Supplier 4', contact: 'Contact 4', email: 'supplier4@example.com', phone: '+1 555 0104', address: '4 Main Street' }
 ];
 
-// Define in-memory data storage for products
+// Define in-memory data storage for products (quantity is the number of units in stock)
 const products = [
-    { id: 1, sku: 'Product 1', name: 'Product One', price: 10.99, category: 'Category 1', supplier: 'Supplier 1' },
-    { id: 2, sku: 'Product 2', name: 'Product Two', price: 15.99, category: 'Category 2', supplier: 'Supplier 2' },
-    { id: 3, sku: 'Product 3', name: 'Product Three', price: 20.99, category: 'Category 3', supplier: 'Supplier 3' },
-    { id: 4, sku: 'Product 4', name: 'Product Four', price: 25.99, category: 'Category 4', supplier: 'Supplier 4' }
+    { id: 1, sku: 'Product 1', name: 'Product One', price: 10.99, category: 'Category 1', supplier: 'Supplier 1', quantity: 20 },
+    { id: 2, sku: 'Product 2', name: 'Product Two', price: 15.99, category: 'Category 2', supplier: 'Supplier 2', quantity: 5 },
+    { id: 3, sku: 'Product 3', name: 'Product Three', price: 20.99, category: 'Category 3', supplier: 'Supplier 3', quantity: 0 },
+    { id: 4, sku: 'Product 4', name: 'Product Four', price: 25.99, category: 'Category 4', supplier: 'Supplier 4', quantity: 50 }
 ];
+
+// Define in-memory data storage for stock movements (empty at startup, filled by POST /products/:sku/movements).
+// A movement is linked to the id of its product and not to its SKU, because the SKU of a deleted product can be used again.
+const movements = [];
 
 // Next id to assign to a new product (never reused, even after a deletion)
 let nextProductId = products.reduce((maxId, p) => Math.max(maxId, p.id), 0) + 1;
@@ -58,15 +62,26 @@ let nextProductId = products.reduce((maxId, p) => Math.max(maxId, p.id), 0) + 1;
 let nextCategoryId = categories.reduce((maxId, c) => Math.max(maxId, c.id), 0) + 1;
 let nextSupplierId = suppliers.reduce((maxId, s) => Math.max(maxId, s.id), 0) + 1;
 
+// Next id to assign to a new stock movement
+let nextMovementId = 1;
+
 /**
  * Validation helpers section: small functions used by the routes to check the types of the request body fields.
  */
+
+// Removes the spaces at the start and at the end of a text (" Food " => "Food").
+// Other values (numbers, undefined...) are returned unchanged, so that the checks below can reject them.
+const trimText = value => typeof value === 'string' ? value.trim() : value;
 
 // Returns true if the value is a string that is not empty (or only spaces)
 const isNonEmptyString = value => typeof value === 'string' && value.trim() !== '';
 
 // Returns true if the value is a real number greater than or equal to 0
 const isValidPrice = value => typeof value === 'number' && Number.isFinite(value) && value >= 0;
+
+// Returns true if the value is a whole number greater than or equal to 0.
+// isSafeInteger also rejects texts ("5"), decimals (2.5) and numbers too big to be counted exactly.
+const isValidQuantity = value => Number.isSafeInteger(value) && value >= 0;
 
 // Returns true if the value looks like an email address (simple check: text@text.text, without spaces)
 const isValidEmail = value => isNonEmptyString(value) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -122,7 +137,12 @@ app.get('/products/:sku', (req, res) => {
 // Define a route to create a new product
 app.post('/products', (req, res) => {
     // In Express 5, req.body is undefined when no JSON body was sent
-    const { sku, name, price, category, supplier } = req.body ?? {};
+    // quantity is optional: a product created without it starts with an empty stock
+    const { price, quantity = 0 } = req.body ?? {};
+    const sku = trimText(req.body?.sku);
+    const name = trimText(req.body?.name);
+    const category = trimText(req.body?.category);
+    const supplier = trimText(req.body?.supplier);
 
     // Validate the request body to ensure all required fields are present
     if ([sku, name, price, category, supplier].some(field => field === undefined)) {
@@ -142,6 +162,10 @@ app.post('/products', (req, res) => {
         return res.status(400).json({ error: 'price must be a number greater than or equal to 0' });
     }
 
+    if (!isValidQuantity(quantity)) {
+        return res.status(400).json({ error: 'quantity must be a whole number greater than or equal to 0' });
+    }
+
     // Check if a product with the same SKU already exists
     const existingProduct = products.find(p => p.sku === sku);
     if (existingProduct) {
@@ -159,7 +183,7 @@ app.post('/products', (req, res) => {
     }
 
     // Create a new product
-    const newProduct = { id: nextProductId++, sku, name, price, category, supplier };
+    const newProduct = { id: nextProductId++, sku, name, price, category, supplier, quantity };
     products.push(newProduct);
 
     // Return the created product
@@ -169,7 +193,10 @@ app.post('/products', (req, res) => {
 // Define a route to update a specific product by SKU
 app.patch('/products/:sku', (req, res) => {
     const productSku = req.params.sku;
-    const { name, price, category, supplier } = req.body ?? {};
+    const { price } = req.body ?? {};
+    const name = trimText(req.body?.name);
+    const category = trimText(req.body?.category);
+    const supplier = trimText(req.body?.supplier);
 
     // Find the product by SKU
     const product = products.find(p => p.sku === productSku);
@@ -177,6 +204,16 @@ app.patch('/products/:sku', (req, res) => {
     // If the product is not found, return a 404 error response
     if (!product) {
         return res.status(404).json({ error: 'Product not found' });
+    }
+
+    // The quantity only changes through stock movements, so that every change is kept in the history
+    if (req.body?.quantity !== undefined) {
+        return res.status(400).json({ error: 'quantity cannot be updated here: use POST /products/:sku/movements' });
+    }
+
+    // At least one field to update must be sent
+    if ([name, price, category, supplier].every(field => field === undefined)) {
+        return res.status(400).json({ error: 'Nothing to update: send name, price, category and/or supplier' });
     }
 
     // Validate the types of the fields that were sent
@@ -229,6 +266,83 @@ app.delete('/products/:sku', (req, res) => {
 
 
 /**
+ * Stock movements section: This section contains the routes to add or remove units of a product,
+ * and to read the history of these changes.
+ */
+
+// Define a route to get the stock movements of a specific product, from the oldest to the newest
+app.get('/products/:sku/movements', (req, res) => {
+    const productSku = req.params.sku;
+    const product = products.find(p => p.sku === productSku);
+
+    // If the product is not found, return a 404 error response
+    if (!product) {
+        return res.status(404).json({ error: 'Product not found' });
+    }
+
+    const productMovements = movements.filter(m => m.productId === product.id);
+    res.status(200).json(productMovements);
+});
+
+// Define a route to add units to the stock of a product (type 'in') or to remove some (type 'out')
+app.post('/products/:sku/movements', (req, res) => {
+    const productSku = req.params.sku;
+    const { type, quantity } = req.body ?? {};
+    const reason = trimText(req.body?.reason);
+
+    // Find the product by SKU
+    const product = products.find(p => p.sku === productSku);
+
+    // If the product is not found, return a 404 error response
+    if (!product) {
+        return res.status(404).json({ error: 'Product not found' });
+    }
+
+    // Validate the request body to ensure all required fields are present
+    const missingFields = findMissingFields({ type, quantity, reason });
+    if (missingFields.length > 0) {
+        return res.status(400).json({ error: `Missing required fields: ${missingFields.join(', ')}` });
+    }
+
+    // Validate the types of the fields
+    if (type !== 'in' && type !== 'out') {
+        return res.status(400).json({ error: "type must be 'in' or 'out'" });
+    }
+
+    // The quantity is always positive: the type says if the units are added or removed
+    if (!isValidQuantity(quantity) || quantity === 0) {
+        return res.status(400).json({ error: 'quantity must be a whole number greater than 0' });
+    }
+
+    if (!isNonEmptyString(reason)) {
+        return res.status(400).json({ error: 'reason must be a non-empty string' });
+    }
+
+    // Check if there are enough units in stock
+    if (type === 'out' && quantity > product.quantity) {
+        return res.status(409).json({ error: `Not enough stock: only ${product.quantity} available` });
+    }
+
+    // Everything is valid: update the stock and keep the movement in the history
+    product.quantity += type === 'in' ? quantity : -quantity;
+
+    const newMovement = {
+        id: nextMovementId++,
+        productId: product.id,
+        type,
+        quantity,
+        reason,
+        stockAfter: product.quantity,
+        date: new Date().toISOString()
+    };
+    movements.push(newMovement);
+
+    // Return the created movement
+    res.status(201).json(newMovement);
+});
+
+
+/**
  * Categories section: This section contains the routes to create, read, update and delete categories,
  * and to list the products of a category.
  */
@@ -240,7 +354,8 @@ app.get('/categories', (req, res) => {
 
 // Define a route to create a new category
 app.post('/categories', (req, res) => {
-    const { name, description } = req.body ?? {};
+    const { description } = req.body ?? {};
+    const name = trimText(req.body?.name);
 
     // Validate the request body to ensure all required fields are present
     const missingFields = findMissingFields({ name, description });
@@ -298,7 +413,8 @@ app.get('/categories/:name/products', (req, res) => {
 // Define a route to update a specific category by its name (rename it and/or change its description)
 app.patch('/categories/:name', (req, res) => {
     const categoryName = req.params.name;
-    const { newName, description } = req.body ?? {};
+    const { description } = req.body ?? {};
+    const newName = trimText(req.body?.newName);
 
     // Find the category by name
     const category = categories.find(c => c.name === categoryName);
@@ -381,7 +497,8 @@ app.get('/suppliers', (req, res) => {
 
 // Define a route to create a new supplier
 app.post('/suppliers', (req, res) => {
-    const { name, contact, email, phone, address } = req.body ?? {};
+    const { contact, email, phone, address } = req.body ?? {};
+    const name = trimText(req.body?.name);
 
     // Validate the request body to ensure all required fields are present
     const missingFields = findMissingFields({ name, contact, email, phone, address });
@@ -446,7 +563,8 @@ app.get('/suppliers/:name/products', (req, res) => {
 // Define a route to update a specific supplier by its name (rename it and/or change its contact details)
 app.patch('/suppliers/:name', (req, res) => {
     const supplierName = req.params.name;
-    const { newName, contact, email, phone, address } = req.body ?? {};
+    const { contact, email, phone, address } = req.body ?? {};
+    const newName = trimText(req.body?.newName);
 
     // Find the supplier by name
     const supplier = suppliers.find(s => s.name === supplierName);
