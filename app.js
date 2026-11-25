@@ -17,8 +17,22 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 /**
- * Middlewares section: This section includes the middlewares applied to every request (JSON body parsing).
+ * Middlewares section: This section includes the middlewares applied to every request (request logs, JSON body parsing).
  */
+
+// Middleware to log every request in the console: date, method, URL, status and duration.
+// It comes first, so that the requests refused by the next middleware (such as malformed JSON) are logged too.
+app.use((req, res, next) => {
+    const startTime = Date.now();
+
+    // 'finish' happens when the response has been sent: this is when the status is known
+    res.on('finish', () => {
+        const duration = Date.now() - startTime;
+        console.log(`${new Date().toISOString()} ${req.method} ${req.originalUrl} ${res.statusCode} ${duration}ms`);
+    });
+
+    next();
+});
 
 app.use(express.json()); // Middleware to parse JSON request bodies
 
@@ -995,6 +1009,48 @@ app.delete('/suppliers/:name', (req, res) => {
 
     // Return a success response
     res.status(200).json({ message: 'Supplier deleted successfully' });
+});
+
+
+/**
+ * Statistics section: This section contains the route that summarises the inventory.
+ */
+
+// Define a route to get a summary of the inventory: totals, value of the stock, products whose stock is low,
+// and the number of products and units in each category and in each warehouse
+app.get('/stats', (req, res) => {
+    const totalUnits = products.reduce((total, p) => total + p.quantity, 0);
+    const stockValue = products.reduce((total, p) => total + p.price * p.quantity, 0);
+    const lowStock = products.filter(p => isLowStock(p)).map(p => p.sku);
+
+    const byCategory = categories.map(c => {
+        const productsInCategory = products.filter(p => p.category === c.name);
+
+        return {
+            category: c.name,
+            products: productsInCategory.length,
+            units: productsInCategory.reduce((total, p) => total + p.quantity, 0)
+        };
+    });
+
+    const byWarehouse = warehouses.map(w => {
+        const productsInWarehouse = products.filter(p => getWarehouseQuantity(p, w.name) > 0);
+
+        return {
+            warehouse: w.name,
+            products: productsInWarehouse.length,
+            units: productsInWarehouse.reduce((total, p) => total + getWarehouseQuantity(p, w.name), 0)
+        };
+    });
+
+    res.status(200).json({
+        totalProducts: products.length,
+        totalUnits,
+        stockValue: Number(stockValue.toFixed(2)), // Rounded to 2 decimals, because 0.1 * 3 gives 0.30000000000000004
+        lowStock,
+        byCategory,
+        byWarehouse
+    });
 });
 
 // Fallback middleware for unknown routes: answers 404 when no route above matched the request

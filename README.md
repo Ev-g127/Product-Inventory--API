@@ -1,6 +1,6 @@
 # Product Inventory API
 
-REST API built with Express.js to manage a product inventory: products, stock movements, warehouses, categories and suppliers.
+REST API built with Express.js to manage a product inventory: products, stock movements, warehouses, categories, suppliers and statistics.
 
 Group 3 final project – BeTechified.
 
@@ -35,6 +35,12 @@ Start the server:
 | `npm start` | Starts the server with Node (use this in production) |
 
 The API is then available at `http://localhost:3000`.
+
+Every request is logged in the console with its date, method, URL, status and duration:
+
+```
+2026-11-25T21:20:04.512Z GET /products?lowStock=true 200 3ms
+```
 
 ## Data model
 
@@ -183,6 +189,21 @@ Several parameters can be used together: a product must match all the filters. U
 | `PATCH` | `/suppliers/:name` | Update a supplier. Body: any of `newName`, `contact`, `email`, `phone`, `address`. Fields not sent are left unchanged | `200` |
 | `DELETE` | `/suppliers/:name` | Delete a supplier | `200` |
 
+### Statistics
+
+| Method | Path | Description | Success |
+|---|---|---|---|
+| `GET` | `/stats` | Get a summary of the inventory | `200` |
+
+| Field | Meaning |
+|---|---|
+| `totalProducts` | Number of products |
+| `totalUnits` | Units in stock, all the products together |
+| `stockValue` | Value of the stock: `price` × `quantity`, added up for all the products |
+| `lowStock` | SKUs of the products whose stock is low |
+| `byCategory` | Number of products and units in each category |
+| `byWarehouse` | Number of products and units in each warehouse |
+
 ### Business rules
 
 - A product's `category` and `supplier` must already exist, and so must the warehouses of a stock movement.
@@ -326,6 +347,34 @@ Response `201 Created`:
 { "message": "Supplier created successfully", "supplier": { "id": 5, "name": "Acme", "contact": "Jane Doe", "email": "jane@acme.com", "phone": "+1 555 0199", "address": "10 Acme Road" } }
 ```
 
+**Get the statistics**
+
+```http
+GET /stats
+```
+
+Response `200 OK`:
+
+```json
+{
+  "totalProducts": 4,
+  "totalUnits": 75,
+  "stockValue": 1599.25,
+  "lowStock": ["Product 2", "Product 3"],
+  "byCategory": [
+    { "category": "Category 1", "products": 1, "units": 20 },
+    { "category": "Category 2", "products": 1, "units": 5 },
+    { "category": "Category 3", "products": 1, "units": 0 },
+    { "category": "Category 4", "products": 1, "units": 50 }
+  ],
+  "byWarehouse": [
+    { "warehouse": "Warehouse 1", "products": 2, "units": 20 },
+    { "warehouse": "Warehouse 2", "products": 2, "units": 35 },
+    { "warehouse": "Warehouse 3", "products": 1, "units": 20 }
+  ]
+}
+```
+
 ## Errors
 
 Every error is returned as JSON:
@@ -345,7 +394,7 @@ Every error is returned as JSON:
 
 ```
 Product-Inventory--API/
-├── app.js          # Express app: in-memory data, routes, error handling, server start
+├── app.js          # Express app: middlewares, in-memory data, routes, error handling, server start
 ├── package.json    # Dependencies and npm scripts
 ├── postman/        # Postman files used to test the API
 ├── .postman/       # Postman workspace configuration
