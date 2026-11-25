@@ -38,7 +38,7 @@ app.use(express.json()); // Middleware to parse JSON request bodies
 
 /**
  * In-memory data storage section: This section contains the in-memory data storage for products, categories, suppliers,
- * warehouses, and stock movements, and the counters used to generate their ids.
+ * users, warehouses, and stock movements, and the counters used to generate their ids.
  */
 
 // Define in-memory data storage for categories
@@ -55,6 +55,14 @@ const suppliers = [
     { id: 2, name: 'Supplier 2', contact: 'Contact 2', email: 'supplier2@example.com', phone: '+1 555 0102', address: '2 Main Street' },
     { id: 3, name: 'Supplier 3', contact: 'Contact 3', email: 'supplier3@example.com', phone: '+1 555 0103', address: '3 Main Street' },
     { id: 4, name: 'Supplier 4', contact: 'Contact 4', email: 'supplier4@example.com', phone: '+1 555 0104', address: '4 Main Street' }
+];
+
+// Define in-memory data storage for users (there is no password, because the API has no login)
+const users = [
+    { id: 1, name: 'User 1', email: 'user1@example.com', role: 'admin' },
+    { id: 2, name: 'User 2', email: 'user2@example.com', role: 'staff' },
+    { id: 3, name: 'User 3', email: 'user3@example.com', role: 'staff' },
+    { id: 4, name: 'User 4', email: 'user4@example.com', role: 'staff' }
 ];
 
 // Define in-memory data storage for warehouses
@@ -93,9 +101,10 @@ const movements = [];
 // Next id to assign to a new product (never reused, even after a deletion)
 let nextProductId = products.reduce((maxId, p) => Math.max(maxId, p.id), 0) + 1;
 
-// Next ids to assign to new categories, suppliers and warehouses (never reused, even after a deletion)
+// Next ids to assign to new categories, suppliers, users and warehouses (never reused, even after a deletion)
 let nextCategoryId = categories.reduce((maxId, c) => Math.max(maxId, c.id), 0) + 1;
 let nextSupplierId = suppliers.reduce((maxId, s) => Math.max(maxId, s.id), 0) + 1;
+let nextUserId = users.reduce((maxId, u) => Math.max(maxId, u.id), 0) + 1;
 let nextWarehouseId = warehouses.reduce((maxId, w) => Math.max(maxId, w.id), 0) + 1;
 
 // Next id to assign to a new stock movement
@@ -126,6 +135,9 @@ const isNumberText = value => isNonEmptyString(value) && Number.isFinite(Number(
 
 // Returns true if the value looks like an email address (simple check: text@text.text, without spaces)
 const isValidEmail = value => isNonEmptyString(value) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
+// Returns true if the value is one of the roles that a user can have
+const isValidRole = value => value === 'admin' || value === 'staff';
 
 // Returns true if the two names are the same, ignoring upper and lower case ("Food" and "food")
 const isSameName = (nameA, nameB) => nameA.toLowerCase() === nameB.toLowerCase();
@@ -1009,6 +1021,148 @@ app.delete('/suppliers/:name', (req, res) => {
 
     // Return a success response
     res.status(200).json({ message: 'Supplier deleted successfully' });
+});
+
+
+/**
+ * Users section: This section contains the routes to create, read, update and delete users.
+ */
+
+// Define a route to get all users, or only the users whose name contains
+// the text given in the query string, e.g. GET /users?name=jane (case-insensitive)
+app.get('/users', (req, res) => {
+    const { name } = req.query;
+
+    // No name filter: return all the users
+    if (name === undefined) {
+        return res.status(200).json(users);
+    }
+
+    // The name filter must be one non-empty text (?name=a&name=b would give an array)
+    if (!isNonEmptyString(name)) {
+        return res.status(400).json({ error: 'name must be a non-empty string' });
+    }
+
+    const matchingUsers = users.filter(u => containsText(u.name, name));
+    res.status(200).json(matchingUsers);
+});
+
+// Define a route to create a new user
+app.post('/users', (req, res) => {
+    // role is optional: by default, the user is a member of the staff
+    const { role = 'staff' } = req.body ?? {};
+    const name = trimText(req.body?.name);
+    const email = trimText(req.body?.email);
+
+    // Validate the request body to ensure all required fields are present
+    const missingFields = findMissingFields({ name, email });
+    if (missingFields.length > 0) {
+        return res.status(400).json({ error: `Missing required fields: ${missingFields.join(', ')}` });
+    }
+
+    // Validate the types of the fields
+    const invalidField = findInvalidTextField({ name, email });
+    if (invalidField) {
+        return res.status(400).json({ error: `${invalidField} must be a non-empty string` });
+    }
+
+    if (!isValidEmail(email)) {
+        return res.status(400).json({ error: 'email must be a valid email address' });
+    }
+
+    if (!isValidRole(role)) {
+        return res.status(400).json({ error: "role must be 'admin' or 'staff'" });
+    }
+
+    // Check if a user with the same email already exists (case-insensitive)
+    if (users.some(u => isSameName(u.email, email))) {
+        return res.status(409).json({ error: 'User with this email already exists' });
+    }
+
+    // Create the new user
+    const newUser = { id: nextUserId++, name, email, role };
+    users.push(newUser);
+
+    // Return the created user
+    res.status(201).json({ message: 'User created successfully', user: newUser });
+});
+
+// Define a route to get a specific user by its id
+app.get('/users/:id', (req, res) => {
+    // The id in the URL is always a text, so the ids are compared as texts
+    const user = users.find(u => String(u.id) === req.params.id);
+
+    // If the user is not found, return a 404 error response
+    if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+    }
+
+    // If the user is found, return the user data as JSON
+    res.status(200).json(user);
+});
+
+// Define a route to update a specific user by its id
+app.patch('/users/:id', (req, res) => {
+    const { role } = req.body ?? {};
+    const name = trimText(req.body?.name);
+    const email = trimText(req.body?.email);
+
+    // Find the user by id
+    const user = users.find(u => String(u.id) === req.params.id);
+
+    // If the user is not found, return a 404 error response
+    if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+    }
+
+    // At least one field to update must be sent
+    if ([name, email, role].every(field => field === undefined)) {
+        return res.status(400).json({ error: 'Nothing to update: send name, email and/or role' });
+    }
+
+    // Validate the types of the fields that were sent
+    const invalidField = findInvalidTextField({ name, email });
+    if (invalidField) {
+        return res.status(400).json({ error: `${invalidField} must be a non-empty string` });
+    }
+
+    if (email !== undefined && !isValidEmail(email)) {
+        return res.status(400).json({ error: 'email must be a valid email address' });
+    }
+
+    if (role !== undefined && !isValidRole(role)) {
+        return res.status(400).json({ error: "role must be 'admin' or 'staff'" });
+    }
+
+    // Check if another user already has the new email (case-insensitive)
+    if (email !== undefined && users.some(u => u !== user && isSameName(u.email, email))) {
+        return res.status(409).json({ error: 'User with this email already exists' });
+    }
+
+    // Update only the fields that were sent in the request body (partial update)
+    if (name !== undefined) user.name = name;
+    if (email !== undefined) user.email = email;
+    if (role !== undefined) user.role = role;
+
+    // Return a success response
+    res.status(200).json({ message: 'User updated successfully', user });
+});
+
+// Define a route to delete a specific user by its id
+app.delete('/users/:id', (req, res) => {
+    // Find the user by id
+    const user = users.find(u => String(u.id) === req.params.id);
+
+    // If the user is not found, return a 404 error response
+    if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Remove the user from the users array
+    users.splice(users.indexOf(user), 1);
+
+    // Return a success response
+    res.status(200).json({ message: 'User deleted successfully' });
 });
 
 
