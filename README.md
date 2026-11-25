@@ -106,18 +106,32 @@ At startup, the API contains 4 sample categories (`Category 1` to `Category 4`),
 ## Endpoints
 
 - Request bodies are JSON: send the header `Content-Type: application/json`.
-- SKUs and names in URLs are case-sensitive and must be URL-encoded: `Category 1` becomes `Category%201`.
+- SKUs and names in the path of a URL are case-sensitive: `/categories/Food` and `/categories/food` are different.
+- Texts in a URL must be URL-encoded: `Category 1` becomes `Category%201`.
 
 ### Products
 
 | Method | Path | Description | Success |
 |---|---|---|---|
-| `GET` | `/products` | List all products | `200` |
-| `GET` | `/products?name=text` | List the products whose name contains `text` (case-insensitive) | `200` |
+| `GET` | `/products` | List all products, or filter and sort them with query parameters (see the table below) | `200` |
 | `GET` | `/products/:sku` | Get one product | `200` |
 | `POST` | `/products` | Create a product. Body: `sku`, `name`, `price`, `category`, `supplier` (required) and `lowStockThreshold` (optional) | `201` |
 | `PATCH` | `/products/:sku` | Update a product. Body: any of `name`, `price`, `category`, `supplier`, `lowStockThreshold`. Fields not sent are left unchanged | `200` |
 | `DELETE` | `/products/:sku` | Delete a product | `200` |
+
+Query parameters of `GET /products`:
+
+| Parameter | What it does | Example |
+|---|---|---|
+| `name` | Keeps the products whose name contains the text | `?name=phone` |
+| `category` | Keeps the products of the category | `?category=Category%201` |
+| `supplier` | Keeps the products of the supplier | `?supplier=Supplier%201` |
+| `minPrice`, `maxPrice` | Keep the products whose price is between these values (included) | `?minPrice=5&maxPrice=20` |
+| `lowStock` | `true` keeps the products whose stock is low, `false` keeps the others | `?lowStock=true` |
+| `sort` | Sorts by `name`, `price` or `quantity` | `?sort=price` |
+| `order` | `asc` (default) or `desc`. Only with `sort` | `?sort=price&order=desc` |
+
+Several parameters can be used together: a product must match all the filters. Upper and lower case do not matter in `name`, `category` and `supplier`.
 
 ### Stock movements
 
@@ -137,6 +151,7 @@ At startup, the API contains 4 sample categories (`Category 1` to `Category 4`),
 | Method | Path | Description | Success |
 |---|---|---|---|
 | `GET` | `/warehouses` | List all warehouses | `200` |
+| `GET` | `/warehouses?name=text` | List the warehouses whose name contains `text` (case-insensitive) | `200` |
 | `GET` | `/warehouses/:name` | Get one warehouse | `200` |
 | `GET` | `/warehouses/:name/products` | List the products of a warehouse: `sku`, `name` and `quantity` in this warehouse | `200` |
 | `GET` | `/warehouses/:name/movements` | List the stock movements from or to a warehouse, from the oldest to the newest | `200` |
@@ -149,6 +164,7 @@ At startup, the API contains 4 sample categories (`Category 1` to `Category 4`),
 | Method | Path | Description | Success |
 |---|---|---|---|
 | `GET` | `/categories` | List all categories | `200` |
+| `GET` | `/categories?name=text` | List the categories whose name contains `text` (case-insensitive) | `200` |
 | `GET` | `/categories/:name` | Get one category | `200` |
 | `GET` | `/categories/:name/products` | List the products of a category | `200` |
 | `POST` | `/categories` | Create a category. Body: `name`, `description` (all required) | `201` |
@@ -160,6 +176,7 @@ At startup, the API contains 4 sample categories (`Category 1` to `Category 4`),
 | Method | Path | Description | Success |
 |---|---|---|---|
 | `GET` | `/suppliers` | List all suppliers | `200` |
+| `GET` | `/suppliers?name=text` | List the suppliers whose name contains `text` (case-insensitive) | `200` |
 | `GET` | `/suppliers/:name` | Get one supplier | `200` |
 | `GET` | `/suppliers/:name/products` | List the products of a supplier | `200` |
 | `POST` | `/suppliers` | Create a supplier. Body: `name`, `contact`, `email`, `phone`, `address` (all required) | `201` |
@@ -282,6 +299,18 @@ Response `200 OK`:
 [{ "id": 2, "sku": "Product 2", "name": "Product Two", "price": 15.99, "category": "Category 2", "supplier": "Supplier 2", "quantity": 5, "lowStockThreshold": 5, "stock": [{ "warehouse": "Warehouse 1", "quantity": 5 }] }]
 ```
 
+**Filter and sort the products**
+
+```http
+GET /products?lowStock=true&sort=price&order=desc
+```
+
+Response `200 OK`:
+
+```json
+[{ "id": 3, "sku": "Product 3", "name": "Product Three", "price": 20.99, "category": "Category 3", "supplier": "Supplier 3", "quantity": 0, "lowStockThreshold": 5, "stock": [] }, { "id": 2, "sku": "Product 2", "name": "Product Two", "price": 15.99, "category": "Category 2", "supplier": "Supplier 2", "quantity": 5, "lowStockThreshold": 5, "stock": [{ "warehouse": "Warehouse 1", "quantity": 5 }] }]
+```
+
 **Create a supplier**
 
 ```http
@@ -307,7 +336,7 @@ Every error is returned as JSON:
 
 | Status | When |
 |---|---|
-| `400 Bad Request` | Missing field, wrong type, empty text, invalid email, invalid price, quantity, low stock threshold or movement type, nothing to update, `quantity` or `stock` sent to `POST /products` or `PATCH /products/:sku`, `sku` sent to `PATCH /products/:sku`, missing or unexpected warehouse in a movement, unknown category, supplier or warehouse in the body, malformed JSON, badly encoded URL |
+| `400 Bad Request` | Missing field, wrong type, empty text, invalid email, invalid price, quantity, low stock threshold or movement type, invalid filter or sort, nothing to update, `quantity` or `stock` sent to `POST /products` or `PATCH /products/:sku`, `sku` sent to `PATCH /products/:sku`, missing or unexpected warehouse in a movement, unknown category, supplier or warehouse in the body, malformed JSON, badly encoded URL |
 | `404 Not Found` | The product, category, supplier, warehouse or route does not exist |
 | `409 Conflict` | The SKU or name is already used, there is not enough stock in the warehouse, or a deletion is blocked because products or stock movements still use the category, supplier or warehouse |
 | `500 Internal Server Error` | Unexpected server error (details are only written in the server logs) |
