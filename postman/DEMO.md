@@ -30,4 +30,4 @@ To play the demo again, restart the server first.
 
 ## Show the tests
 
-Open the menu of the collection **Product Inventory API** and choose **Run**. It sends 78 requests to the 27 routes and checks 232 tests, error cases included. It deletes what it creates, so it can be run before or after the demo.
+Open the menu of the collection **Product Inventory API** and choose **Run**. It sends 91 requests to the 32 routes and checks 271 tests, error cases included. It deletes what it creates, so it can be run before or after the demo.
